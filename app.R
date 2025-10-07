@@ -28,7 +28,7 @@ ui <- fluidPage(
       ),
       
       div(class = "btn-container",
-          downloadButton("download_csv", "Entire Table", class = "btn-block"),
+          downloadButton("download_csv", "Cases List", class = "btn-block"),
           downloadButton("download_summary_csv", "Weekly Summary", class = "btn-block")
           )
       ),
@@ -325,7 +325,12 @@ server <- function(input, output, session) {
         summary_df$total_population <- NA
       }
       summary_df <- summary_df %>%
-        select(week, censal_fraction, recount, total_population)
+        mutate(
+          country = input$country,
+          province = input$province,
+          department = input$department
+        ) %>%
+        select(week, country, province, department, censal_fraction, recount, total_population)
       write.csv(summary_df, file, row.names = FALSE, fileEncoding = "UTF-8")
     })
 
