@@ -1,7 +1,9 @@
 source("R/global.R")
 
 ui <- fluidPage(
-  tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "config.css")),
+  tags$head(
+    tags$title("API Population "),
+    tags$link(rel = "stylesheet", type = "text/css", href = "config.css")),
   div(class = "banner-container",
       img(src = "logoLeft.png", class = "banner-img fixed-img"),
       img(src = "logoMiddle.png", class = "banner-img flexible-img"),
@@ -364,32 +366,34 @@ server <- function(input, output, session) {
     
     df <- switch(ext,
                  "csv"  = read.csv(filepath, stringsAsFactors = FALSE),
-                 "xlsx" = read_excel(filepath),
+                 "xlsx" = readxl::read_excel(filepath),
                  "xml"  = {
-                   doc <- read_xml(filepath)
-                   as.data.frame(as.list(xml_text(xml_find_all(doc, "//*")))) # adapt
+                   doc <- xml2::read_xml(filepath)
+                   nodes <- xml2::as_list(doc)
+                   as.data.frame(do.call(rbind, lapply(nodes, unlist)), stringsAsFactors = FALSE)
                  },
                  "dba"  = {
-                   con2 <- dbConnect(RSQLite::SQLite(), filepath)
-                   df <- dbReadTable(con2, "reports")
-                   dbDisconnect(con2)
+                   tmp <- tempfile(fileext = ".sqlite")
+                   file.copy(filepath, tmp, overwrite = TRUE)
+                   con2 <- DBI::dbConnect(RSQLite::SQLite(), tmp)
+                   df <- DBI::dbReadTable(con2, "reports")
+                   DBI::dbDisconnect(con2)
                    df
                  },
                  stop("Unsupported file type")
     )
-    raw_data(df)
     
+    raw_data(df)
     showModal(modalDialog(
       title = "Map Columns",
-      fluidRow(
-        column(6, h4("File Columns")),
-        column(6, h4("Reports Columns"))
-      ),
+      fluidRow(column(6, h4("File Columns")),
+               column(6, h4("Reports Columns"))),
       uiOutput("mapping_ui"),
       footer = tagList(modalButton("Cancel"),
                        actionButton("final_upload", "Append Data"))
     ))
   })
+  
   
   output$mapping_ui <- renderUI({
     req(raw_data())

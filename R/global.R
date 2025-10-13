@@ -1,12 +1,14 @@
+library(leaflet)
+library(RSQLite)
+library(shinyjs)
+library(stringi)
+library(readxl)
 library(shiny)
 library(dplyr)
-library(shinyjs)
 library(here)
-library(leaflet)
+library(xml2)
 library(DBI)
-library(RSQLite)
 library(sf)
-library(stringi)
 
 source("R/utils.R")
 
