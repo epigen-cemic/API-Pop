@@ -12,7 +12,7 @@ ui <- fluidPage(
 
   sidebarLayout(
     sidebarPanel(style = "background-color: #c2c2c2;",
-      titlePanel("Rumor Analisis"),
+      titlePanel("API - POP"),
       actionButton("upload_btn", "Upload File"),
       
       h3("Filter by"),
