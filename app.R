@@ -105,8 +105,10 @@ server <- function(input, output, session) {
         )
       })
     )
-  })
+  })   # Reactive UI
 
+  ### Location Inputs ###
+  
   observeEvent(input$country, {
     req(input$country) 
     
@@ -251,10 +253,9 @@ server <- function(input, output, session) {
     result <- dbGetQuery(con, sql)
     result <- to_utf8(result)
     result
-  })
+  })     # Query format
   
   observeEvent(input$reset, {
-    
     # Reset checkboxes and corresponding values
     for (col in names(columns)) {
       updateCheckboxInput(session, paste0("chk_", col), value = FALSE)
@@ -278,21 +279,24 @@ server <- function(input, output, session) {
       }
       if (col_type == "age") {
         updateSliderInput(session, "age_range", value = c(0, 120))
+      } 
     }
-      }
-    })
+    # Reset query data
+    data(NULL)
+    
+    })    # Query reset
   
   output$results <- renderTable({
     df <- data()[, cols_for_table, drop = FALSE]
     colnames(df) <- display_names[cols_for_table]
     df
-  })
+  })      # Table With results
   
   observeEvent(input$country, {
     req(input$country)
     choices <- population_layers[[input$country]]
     updateSelectInput(session, "pop_layer", choices = choices, selected = choices[1])
-  })
+  })      # Database with population
   
   output$download_summary_csv <- downloadHandler(filename = function() {
       paste0("weekly_summary_", Sys.Date(), ".csv")
@@ -393,7 +397,6 @@ server <- function(input, output, session) {
                        actionButton("final_upload", "Append Data"))
     ))
   })
-  
   
   output$mapping_ui <- renderUI({
     req(raw_data())
