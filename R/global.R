@@ -9,6 +9,7 @@ library(here)
 library(xml2)
 library(DBI)
 library(sf)
+library(DT)
 
 source("R/utils.R")
 
@@ -63,6 +64,24 @@ cols_for_table <- c(
   "sex",
   "Age",
   "consultation_date"
+)
+
+fix_map <- c(
+  "Ã¡" = "á",
+  "Ã©" = "é",
+  "Ã­" = "í",
+  "Ã³" = "ó",
+  "Ãº" = "ú",
+  "Ã" = "Á",
+  "Ã‰" = "É",
+  "Ã" = "Í",
+  "Ã“" = "Ó",
+  "Ãš" = "Ú",
+  "Ã±" = "ñ",
+  "Ã‘" = "Ñ",
+  "Ã¼" = "ü",
+  "Ãœ" = "Ü"
+  # add more if needed
 )
 
 # Where is the information being gathered from

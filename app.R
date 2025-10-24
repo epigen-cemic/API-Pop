@@ -187,20 +187,26 @@ server <- function(input, output, session) {
     })
   })    # For symptoms logic filters
   
+  # server.R or inline in your server
+  
   data <- eventReactive(input$run, {
     eq_filters <- list()
     range_filters <- list()
     
-    # existing loop over columns...
+    # Function to normalize inputs once
+    normalize_input <- function(x) {
+      if (is.character(x) && !is.null(x) && x != "") {
+        stri_trans_general(x, "Latin-ASCII")
+      } else x
+    }
+    
     for (col in names(columns)) {
       col_type <- columns[[col]]
       if (!isTRUE(input[[paste0("chk_", col)]])) next
       
-      if (col_type == "text") {
+      if (col_type %in% c("text", "text_logic")) {
         val <- input[[paste0("val_", col)]]
-        if (!is.null(val) && val != "") eq_filters[[col]] <- val
-      } else if (col_type == "text_logic") {
-        val <- input[[paste0("val_", col)]]
+        val <- normalize_input(val)
         if (!is.null(val) && val != "") eq_filters[[col]] <- val
       } else if (col_type == "daterange") {
         rng <- input[[paste0("valrange_", col)]]
@@ -210,6 +216,7 @@ server <- function(input, output, session) {
         mode <- input[[paste0("mode_", col)]]
         if (mode == "exact") {
           val <- input[[paste0("val_", col)]]
+          val <- normalize_input(val)
           if (!is.null(val) && val != "") eq_filters[[col]] <- as.Date(val)
         } else if (mode == "range") {
           rng <- input[[paste0("valrange_", col)]]
@@ -220,15 +227,17 @@ server <- function(input, output, session) {
     }
     
     # Geography filters
-    if (!is.null(input$country)    && input$country    != "") eq_filters[["country"]] <- stri_trans_general(input$country, "Latin-ASCII")
-    if (!is.null(input$province)   && input$province   != "") eq_filters[["province"]] <- stri_trans_general(input$province, "Latin-ASCII")
-    if (!is.null(input$department) && input$department != "") eq_filters[["department"]] <- stri_trans_general(input$department, "Latin-ASCII")
-    if (!is.null(input$fraction)   && input$fraction   != "") eq_filters[["censal_fraction"]] <- input$fraction
+    geo_cols <- c("country", "province", "department", "censal_fraction")
+    for (col in geo_cols) {
+      val <- input[[col]]
+      val <- normalize_input(val)
+      if (!is.null(val) && val != "") eq_filters[[col]] <- val
+    }
     
     # Age filter
     age_range <- input$age_range
     
-    # Build base query
+    # Build SQL
     sql <- paste(
       "SELECT",
       paste(c(
@@ -246,51 +255,52 @@ server <- function(input, output, session) {
       "FROM", dbQuoteIdentifier(con, table_name)
     )
     
-    # Add filters
     sql <- add_filters_to_sql(sql, con, eq_filters, range_filters, age_range)
     
-    # Run query
     result <- dbGetQuery(con, sql)
     result <- to_utf8(result)
     result
-  })     # Query format
+  })    # Query format
   
   observeEvent(input$reset, {
-    # Reset checkboxes and corresponding values
     for (col in names(columns)) {
       updateCheckboxInput(session, paste0("chk_", col), value = FALSE)
       
       col_type <- columns[[col]]
       
-      if (col_type == "text" || col_type == "date_or_range") {
+      if (col_type %in% c("text", "date_or_range")) {
         updateTextInput(session, paste0("val_", col), value = "")
       }
-      if (col_type == "daterange" || col_type == "date_or_range") {
-        updateDateRangeInput(session, paste0("valrange_", col), start = NULL, end = NULL)
+      if (col_type %in% c("daterange", "date_or_range")) {
+        updateDateRangeInput(session, paste0("valrange_", col),
+                             start = NULL, end = NULL)
       }
       if (col_type == "date_or_range") {
         updateRadioButtons(session, paste0("mode_", col), selected = "exact")
       }
       if (col_type == "geography") {
         updateSelectInput(session, "country", selected = "")
-        updateSelectInput(session, "province", choices = "", selected = "")
-        updateSelectInput(session, "department", choices = "", selected = "")
-        updateSelectInput(session, "fraction", choices = "", selected = "")
+        updateSelectInput(session, "province", choices = character(0), selected = "")
+        updateSelectInput(session, "department", choices = character(0), selected = "")
+        updateSelectInput(session, "fraction", choices = character(0), selected = "")
       }
       if (col_type == "age") {
-        updateSliderInput(session, "age_range", value = c(0, 120))
-      } 
+        isolate(updateSliderInput(session, "age_range", value = c(0, 120)))
+      }
     }
-    # Reset query data
-    data(NULL)
-    
-    })    # Query reset
+    if (exists("data")) try(data(NULL), silent = TRUE)
+  })  # Query reset
   
   output$results <- renderTable({
     df <- data()[, cols_for_table, drop = FALSE]
+    geo_cols <- intersect(c("country", "province", "department"), names(df))
+    if (length(geo_cols) > 0) {
+      df[geo_cols] <- lapply(df[geo_cols], fix_accents)
+    }
+    
     colnames(df) <- display_names[cols_for_table]
     df
-  })      # Table With results
+  }, sanitize.text.function = function(x) x)  # Table With results
   
   observeEvent(input$country, {
     req(input$country)
@@ -369,7 +379,7 @@ server <- function(input, output, session) {
     ext <- tools::file_ext(filepath)
     
     df <- switch(ext,
-                 "csv"  = read.csv(filepath, stringsAsFactors = FALSE),
+                 "csv"  = read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "UTF-8"),
                  "xlsx" = readxl::read_excel(filepath),
                  "xml"  = {
                    doc <- xml2::read_xml(filepath)
@@ -387,14 +397,22 @@ server <- function(input, output, session) {
                  stop("Unsupported file type")
     )
     
+    df[] <- lapply(df, function(x)
+      if (is.character(x)) iconv(x, from = "", to = "UTF-8", sub = "") else x
+    )
+    
     raw_data(df)
     showModal(modalDialog(
       title = "Map Columns",
-      fluidRow(column(6, h4("File Columns")),
-               column(6, h4("Reports Columns"))),
+      fluidRow(
+        column(6, h4("File Columns")),
+        column(6, h4("Reports Columns"))
+      ),
       uiOutput("mapping_ui"),
-      footer = tagList(modalButton("Cancel"),
-                       actionButton("final_upload", "Append Data"))
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("final_upload", "Append Data")
+      )
     ))
   })
   
@@ -427,6 +445,7 @@ server <- function(input, output, session) {
     df <- df[, reports_cols]
     
     dbAppendTable(con, "reports", df)
+    normalize_geography_batch(con, table = "reports", batch_size = 1000)
     
     removeModal()
     showNotification("Data merged into reports.")
