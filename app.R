@@ -88,9 +88,7 @@ server <- function(input, output, session) {
                            )
                          )
                        } else if(col_type == "age") {      # new branch for age
-                         sliderInput(paste0("valrange_", col),
-                                     paste("Select", display, "range"),
-                                     min = 0, max = 120, value = c(0, 120))
+                         sliderInput("age_range", "Select Age range", min=0, max=120, value=c(0,120))
                        } else if(col_type == "geography") {
                          tagList(
                            selectInput("country", "Country", choices = c("", "Argentina", "Brazil")),
