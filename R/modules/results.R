@@ -95,11 +95,22 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
         summary_df <- summary_df %>% 
           mutate(
             country = meta$country, 
-            province = meta$province, 
-            department = meta$department
+            level1 = meta$province,
+            level2 = meta$department
           ) %>%
-          select(year, week, country, province, department, censal_fraction, n_cases, total_population)
+          # rename(new_name = old_name) within select()
+          select(
+            year, 
+            week, 
+            country, 
+            level1, 
+            level2, 
+            level3 = censal_fraction,
+            n_cases, 
+            total_population
+          )
         
+        # Write the file
         write.csv(summary_df, file, row.names = FALSE, fileEncoding = "UTF-8")
       }
     )
