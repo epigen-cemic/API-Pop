@@ -100,12 +100,12 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
           ) %>%
           # rename(new_name = old_name) within select()
           select(
-            year, 
-            week, 
             country, 
             level1, 
             level2, 
             level3 = censal_fraction,
+            year, 
+            week, 
             n_cases, 
             total_population
           )
