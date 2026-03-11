@@ -153,58 +153,75 @@ normalize_geography_batch <- function(con, table = "reports", batch_size = 1000)
   message("Normalization complete.")
 }
 
-#' Add Dynamic Filters to SQL Query
+#' Add Filters to SQL Query
+#' 
+#' Dynamically appends WHERE clauses to a base SQL statement based on 
+#' user-selected filters, handling normalization for geographic tiers.
 #'
-#' Appends WHERE clauses to a SQL query based on user inputs. Handles equality, 
-#' date ranges, and specialized text logic (AND/OR groups).
-#'
-#' @param sql Character string. The base SQL query.
+#' @param sql Character. The base SQL query (e.g., "SELECT * FROM reports").
 #' @param con A DBIConnection object.
-#' @param eq_filters List of equality filters (col = val).
-#' @param range_filters List of range filters (col BETWEEN val1 AND val2).
-#' @param age_range Numeric vector of length 2. Age min and max.
-#' @return A character string containing the complete SQL query.
+#' @param eq_filters List. Named list of equality/logic filters.
+#' @param range_filters List. Named list of date/numerical range filters.
+#' @param age_range Numeric vector. A length-2 vector for min/max age.
+#' @return Character. The modified SQL query with WHERE clauses.
 #' @export
 add_filters_to_sql <- function(sql, con, eq_filters = list(), range_filters = list(), age_range = NULL) {
-  conditions <- character()
-  if (!is.null(age_range)) range_filters$Age <- age_range
   
+  conditions <- character()
+  
+  # 1. Handle Age Range (from slider)
+  if (!is.null(age_range)) {
+    range_filters$Age <- age_range
+  }
+  
+  # 2. Process Equality and Logic Filters
   for (colname in names(eq_filters)) {
     val <- eq_filters[[colname]]
-    # Use generic normalized columns if available
-    if (colname %in% c("country", "level1", "level2")) {
+    
+    # Check if the column is a geographic tier that needs normalization mapping
+    if (colname %in% c("country", "level1", "level2", "level3")) {
       colname_norm <- paste0(colname, "_norm")
-      val <- stringi::stri_trans_general(val, "Latin-ASCII")
-      conditions <- c(conditions, build_eq(con, colname_norm, val))
+      # Strip accents and normalize value for the SQL search
+      val_norm <- stringi::stri_trans_general(val, "Latin-ASCII")
+      conditions <- c(conditions, build_eq(con, colname_norm, val_norm))
+      
     } else if (colname == "symptom_description") {
+      # Use specialized helper for 'and/or' logic strings
       conditions <- c(conditions, build_logic(con, colname, val))
+      
     } else {
+      # Standard equality filter
       conditions <- c(conditions, build_eq(con, colname, val))
     }
   }
   
+  # 3. Process Range Filters (Dates and Age)
   for (colname in names(range_filters)) {
-    conditions <- c(conditions, build_range(con, colname, range_filters[[colname]]))
+    val <- range_filters[[colname]]
+    conditions <- c(conditions, build_range(con, colname, val))
   }
   
+  # 4. Final SQL Assembly
   if (length(conditions) > 0) {
     sql <- paste(sql, "WHERE", paste(conditions, collapse = " AND "))
   }
-  sql
+  
+  return(sql)
 }
 
-#' Build Equality SQL Clause
+
+#' Build Equality SQL Clause (NA-Safe Version)
 #' @param con DBIConnection.
 #' @param colname Column name.
 #' @param val Value to match.
 #' @return SQL string.
-#' @keywords internal
 build_eq <- function(con, colname, val) {
-  if (inherits(val, "Date")) {
-    sprintf("%s = %s", DBI::dbQuoteIdentifier(con, colname), DBI::dbQuoteString(con, as.character(val)))
-  } else {
-    sprintf("%s LIKE %s COLLATE NOCASE", DBI::dbQuoteIdentifier(con, colname), DBI::dbQuoteString(con, paste0("%", val, "%")))
-  }
+  # isTruthy safely handles NULL, NA, and ""
+  if (!shiny::isTruthy(val)) return(NULL)
+  
+  sprintf("%s = %s", 
+          DBI::dbQuoteIdentifier(con, colname),
+          DBI::dbQuoteString(con, as.character(val)))
 }
 
 #' Build Range SQL Clause
@@ -237,154 +254,59 @@ build_logic <- function(con, colname, val) {
   paste(or_clauses, collapse = " OR ")
 }
 
-#' Fetch Unique Options with In-Memory Parent Matching
-#'
-#' Retrieves unique values from the GeoPackage for a specific administrative level.
-#' Uses a "Safe Parent Matching" strategy where parent names are fetched to R memory
-#' to handle character encoding (accents) reliably without crashing SQLite.
-#'
-#' @param gpkg_path Character string. Path to the geometry .gpkg file.
-#' @param country Character string. The selected country key.
-#' @param level_name Character string. The config level name (e.g., "department").
-#' @param parent_name Character string. The config level name of the parent (e.g., "province").
-#' @param parent_val Character string. The value of the selected parent.
-#' @return Character vector of unique options (cleaned to UTF-8).
-#' @export
-fetch_options <- function(gpkg_path, country, level_name, parent_name = NULL, parent_val = NULL) {
-  
-  # 1. Config Check
-  if (!exists("ALL_CONFIGS")) {
-    try(ALL_CONFIGS <<- jsonlite::fromJSON(here::here("www/config.json")), silent=TRUE)
-  }
-  
-  if (is.null(country) || country == "" || country == "(Select Country)") return(character(0))
-  if (is.null(level_name)) return(character(0))
-  
+
+
+#' Fetch Geographic Options Based on ID Matching
+#' 
+#' @param gpkg_path Path to the .gpkg file.
+#' @param country The country key (e.g., "Argentina").
+#' @param level_key The level we want to FILL (e.g., "level1", "level2").
+#' @param parent_key The level the user JUST CLICKED (e.g., "level1").
+#' @param parent_val The ID CODE of the selected parent (e.g., "06" for a province).
+fetch_options <- function(gpkg_path, country, level_key, parent_key = NULL, parent_val = NULL) {
+  # 1. Validation
+  if (!exists("ALL_CONFIGS") || is.null(country) || country == "") return(character(0))
   config <- ALL_CONFIGS[[country]]
-  if (is.null(config)) return(character(0))
-  
-  target_map <- config$mapping[[level_name]]
+  target_map <- config$mapping[[level_key]]
   if (is.null(target_map)) return(character(0))
   
-  target_layer <- target_map$spatial_layer
-  if (is.null(target_layer)) target_layer <- target_map$source
-  if (is.null(target_layer)) return(character(0))
+  name_col <- if(!is.null(target_map$name_col)) target_map$name_col else "nam"
+  id_col   <- if(!is.null(target_map$spatial_id)) target_map$spatial_id else "rowid"
   
-  if (!file.exists(gpkg_path)) return(character(0))
-  
-  # Safeguard: Stop if parent is required but empty
-  if (!is.null(parent_name)) {
-    if (is.null(parent_val) || parent_val == "") return(character(0))
-  }
-  
-  con_geo <- RSQLite::dbConnect(RSQLite::SQLite(), gpkg_path)
-  on.exit(RSQLite::dbDisconnect(con_geo))
-  
-  # Helper: Clean Encoding
-  clean_vec <- function(x) {
-    # If we accidentally get binary data, convert to string safely or warn
-    if(is.raw(x) || is.list(x)) return(as.character(x)) 
-    x <- iconv(x, from = "latin1", to = "UTF-8", sub = "")
-    return(x)
-  }
-  
-  # 2. Detect Name Column (THE FIX)
-  fields <- tryCatch(RSQLite::dbListFields(con_geo, target_layer), error = function(e) NULL)
-  if (is.null(fields)) return(character(0))
-  
-  # Priority 1: Configured 'name_col'
-  if (!is.null(target_map$name_col) && target_map$name_col %in% fields) {
-    target_col <- target_map$name_col
-    
-    # Priority 2: Standard Names
-  } else if ("nam" %in% fields) {
-    target_col <- "nam"
-  } else if ("name" %in% fields) {
-    target_col <- "name"
-  } else if ("nombre" %in% fields) {
-    target_col <- "nombre"
-    
-    # Priority 3: SPATIAL ID (Fix for Fractions)
-    # If no name exists, use the ID (e.g., cod_indec) as the display label
+  # 2. SQL Build (ID-BASED)
+  if (is.null(parent_key) || is.null(parent_val) || parent_val == "") {
+    sql <- sprintf("SELECT DISTINCT %s, %s FROM %s ORDER BY %s", 
+                   name_col, id_col, target_map$layer_name, name_col)
   } else {
-    spatial_id <- if(!is.null(target_map$spatial_id)) target_map$spatial_id else target_map$id_col
-    if (!is.null(spatial_id) && spatial_id %in% fields) {
-      target_col <- spatial_id
-    } else {
-      # Fallback (risky, but better than crash)
-      target_col <- fields[1] 
-    }
+    parent_map <- config$mapping[[parent_key]]
+    sql <- sprintf("
+      SELECT DISTINCT c.%s, c.%s
+      FROM %s c
+      JOIN %s p ON CAST(c.%s AS TEXT) = CAST(p.%s AS TEXT)
+      WHERE p.%s = '%s'
+      ORDER BY c.%s", 
+                   name_col, id_col, target_map$layer_name, parent_map$layer_name, 
+                   target_map$parent_col, parent_map$spatial_id, 
+                   parent_map$spatial_id, parent_val, name_col)
   }
   
-  # 3. Build Query
-  if (!is.null(parent_name) && !is.null(parent_val) && parent_val != "") {
+  # 3. Execution & Dual-Value Return
+  res <- tryCatch({
+    data <- sf::st_read(gpkg_path, query = sql, quiet = TRUE)
+    data <- to_utf8(data) 
     
-    # --- PARENT MATCHING ---
-    parent_map <- config$mapping[[parent_name]]
-    if(is.null(parent_map)) return(character(0))
-    
-    parent_layer    <- if(!is.null(parent_map$spatial_layer)) parent_map$spatial_layer else parent_map$source
-    parent_link_col <- if(!is.null(parent_map$spatial_id)) parent_map$spatial_id else parent_map$id_col
-    
-    p_fields <- RSQLite::dbListFields(con_geo, parent_layer)
-    
-    # Determine Parent Name Column
-    p_name_col <- "nam"
-    if (!is.null(parent_map$name_col) && parent_map$name_col %in% p_fields) {
-      p_name_col <- parent_map$name_col
-    } else if ("name" %in% p_fields) { p_name_col <- "name" }
-    else if ("nombre" %in% p_fields) { p_name_col <- "nombre" }
-    
-    # Fetch Parents
-    q_parents <- sprintf("SELECT %s, %s FROM %s", parent_link_col, p_name_col, parent_layer)
-    df_parents <- RSQLite::dbGetQuery(con_geo, q_parents)
-    
-    if (nrow(df_parents) == 0) return(character(0))
-    
-    # Match Name in R
-    db_names_clean <- clean_vec(as.vector(df_parents[[p_name_col]]))
-    match_idx <- which(db_names_clean == parent_val)
-    if (length(match_idx) == 0) match_idx <- which(tolower(db_names_clean) == tolower(parent_val))
-    if (length(match_idx) == 0) match_idx <- which(trimws(db_names_clean) == trimws(parent_val))
-    
-    if (length(match_idx) == 0) return(character(0))
-    
-    # Get ID
-    raw_id <- df_parents[[parent_link_col]][match_idx[1]]
-    
-    child_ref_col <- target_map$parent_col 
-    
-    # Robust Query (Handles Text vs Int ID mismatch)
-    query <- sprintf("SELECT DISTINCT %s FROM %s WHERE CAST(%s AS TEXT) = '%s' OR CAST(%s AS INT) = %s ORDER BY 1", 
-                     target_col, target_layer, 
-                     child_ref_col, as.character(raw_id),
-                     child_ref_col, suppressWarnings(as.numeric(raw_id)))
-    
-  } else {
-    # --- TOP LEVEL QUERY ---
-    query <- sprintf("SELECT DISTINCT %s FROM %s ORDER BY 1", 
-                     target_col, target_layer)
-  }
-  
-  # 4. Execute
-  tryCatch({
-    res <- RSQLite::dbGetQuery(con_geo, query)
-    if(nrow(res) == 0) return(character(0))
-    
-    raw_vec <- as.vector(res[[1]])
-    
-    if (is.raw(raw_vec) || is.list(raw_vec)) {
-      # Should not happen now, but as a final safety:
-      return(as.character(raw_vec))
-    }
-    
-    raw_vec <- raw_vec[!is.na(raw_vec)]
-    return(clean_vec(raw_vec))
+    # RE-FIXED: Return names = "Belén", values = "06" (the ID)
+    # This makes the dropdowns work perfectly again.
+    choices <- setNames(as.character(data[[id_col]]), as.character(data[[name_col]]))
+    choices
     
   }, error = function(e) {
+    message("Fetch Error: ", e$message)
     return(character(0))
   })
+  return(res)
 }
+
 
 #' Check Valid Encoding
 #'

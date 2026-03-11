@@ -1,3 +1,1 @@
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=password
-DB_PATH=data/your_database.dba
+R_CONFIG_ACTIVE=default
