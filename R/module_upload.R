@@ -127,7 +127,7 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
       df <- df[, target_cols, drop = FALSE]
       
       # Append and Normalize
-      DBI::dbAppendTable(con, target_table, df)
+      pool::dbAppendTable(con, target_table, df)
       normalize_geography_batch(con, table = target_table, batch_size = 1000)
       
       removeModal()

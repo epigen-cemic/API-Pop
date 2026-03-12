@@ -132,18 +132,19 @@ normalize_geography_batch <- function(con, table = "reports", batch_size = 1000)
     }
     
     # Write back to DB using a transaction
-    DBI::dbBegin(con)
+# Write back to DB using a pool-compatible transaction
     tryCatch({
-      set_clause <- paste(paste0(unlist(pairs), " = ?"), collapse = ", ")
-      update_sql <- sprintf("UPDATE %s SET %s WHERE rowid = ?", table, set_clause)
-      
-      params <- unname(updates)
-      params[[length(params) + 1]] <- batch$rowid
-      
-      DBI::dbExecute(con, update_sql, params = params)
-      DBI::dbCommit(con)
+      pool::poolWithTransaction(con, function(conn) {
+        set_clause <- paste(paste0(unlist(pairs), " = ?"), collapse = ", ")
+        update_sql <- sprintf("UPDATE %s SET %s WHERE rowid = ?", table, set_clause)
+        
+        params <- unname(updates)
+        params[[length(params) + 1]] <- batch$rowid
+        
+        # Note: We use 'conn' (the checked-out connection) here, not 'con' (the pool)
+        DBI::dbExecute(conn, update_sql, params = params)
+      })
     }, error = function(e) {
-      DBI::dbRollback(con)
       stop("Error during normalization batch: ", e$message)
     })
     
