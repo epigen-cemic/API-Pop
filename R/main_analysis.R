@@ -105,7 +105,7 @@ analysisServer <- function(id, con, gpkg_path) {
       }
       
       # B. Build the SELECT statement
-      select_cols <- c("suspected_diagnosis", "symptom_description", "symptom_onset_date", 
+      select_cols <- c("suspected_diagnosis", "symptom_description", "symptom_onset_date",
                        base_geo_cols, 
                        "consultation_date", "sex", 
                        "CAST((julianday(consultation_date) - julianday(birth_date)) / 365.25 AS INT) AS Age")

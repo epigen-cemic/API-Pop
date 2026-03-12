@@ -84,25 +84,27 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
         specific_gpkg <- here::here("data", config$file_name)
         req(file.exists(specific_gpkg))
         
-        # B. Prep Year/Week from report_date
+        # B. Prep Year/Week from consultation_date
         df <- df %>% 
           dplyr::mutate(
-            year = lubridate::isoyear(report_date),
-            week = lubridate::isoweek(report_date)
+            year = lubridate::isoyear(consultation_date),
+            week = lubridate::isoweek(consultation_date)
           )
         
         # C. Summarize Counts
-        # We group by the column defined in the JSON (usually 'level3')
+        # FIX: Group by all available geographic columns to retain the hierarchy!
         db_col <- level3_map$db_column
+        geo_cols <- intersect(config$levels, names(df))
+        
         summary_df <- df %>% 
-          dplyr::group_by(year, week, !!sym(db_col)) %>% 
+          dplyr::group_by(year, week, dplyr::across(dplyr::all_of(geo_cols))) %>% 
           dplyr::summarise(n_cases = dplyr::n(), .groups = "drop")
         
         # D. Load Population and Spatial ID
         pop_df <- sf::st_read(specific_gpkg, layer = level3_map$layer_name, quiet = TRUE) %>%
           sf::st_drop_geometry() 
         
-        # E. Join Logic using spatial_id (cod_indec)
+        # E. Join Logic using spatial_id
         # We ensure both keys are character to prevent ID matching errors
         spatial_id_key <- level3_map$spatial_id
         
@@ -115,18 +117,11 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
             by = setNames(spatial_id_key, db_col)
           )
         
-        # F. Assemble Final 8-Column Structure
+        # F. Assemble Final Column Structure
+        # FIX: Select the dynamic geographic columns straight from the dataset
         final_df <- final_df %>% 
-          dplyr::mutate(
-            country = meta$country, 
-            level1 = meta$level1,
-            level2 = meta$level2
-          ) %>%
           dplyr::select(
-            country, 
-            level1, 
-            level2, 
-            level3 = !!sym(db_col), # This now contains the cod_indec
+            dplyr::all_of(geo_cols),
             week,
             year, 
             cases = n_cases, 
