@@ -40,8 +40,13 @@ fix_encoding_to_utf8 <- function(con, table = "reports") {
 to_utf8 <- function(df) {
   char_cols <- names(df)[sapply(df, is.character)]
   for (colname in char_cols) {
-    # Vectorized iconv is faster and safer than loop
-    df[[colname]] <- iconv(df[[colname]], from = "latin1", to = "UTF-8", sub = "")
+    # Safely forces UTF-8 on both Windows and Linux without corrupting data
+    df[[colname]] <- enc2utf8(as.character(df[[colname]]))
+    
+    # Optional: Catch any lingering mojibake
+    if (exists("fix_map")) {
+      df[[colname]] <- fix_accents(df[[colname]])
+    }
   }
   return(df)
 }
