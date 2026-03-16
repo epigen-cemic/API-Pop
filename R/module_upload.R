@@ -44,7 +44,16 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
       ext <- tools::file_ext(filepath)
       
       df <- switch(ext,
-                   "csv"  = utils::read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "UTF-8"),
+                   "csv"  = {
+                     tryCatch({
+                       utils::read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+                     }, warning = function(w) {
+                       utils::read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "latin1")
+                     }, error = function(e) {
+                       utils::read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "latin1")
+                     })
+                   },
+                   "xlsx" = readxl::read_excel(filepath),
                    "xlsx" = readxl::read_excel(filepath),
                    "xml"  = {
                      doc <- xml2::read_xml(filepath); nodes <- xml2::as_list(doc)
@@ -59,7 +68,7 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
       )
       
       # Clean encoding
-      df[] <- lapply(df, function(x) if (is.character(x)) iconv(x, from = "", to = "UTF-8", sub = "") else x)
+      df[] <- lapply(df, function(x) if (is.character(x)) enc2utf8(as.character(x)) else x)
       raw_data(df)
       
       # Show Mapping Modal
@@ -104,6 +113,7 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
     # 4. Final Append
     observeEvent(input$final_upload, {
       df <- raw_data()
+      req(nrow(df) > 0)
       df_cols <- names(df)
       unmatched_cols <- setdiff(df_cols, target_cols)
       

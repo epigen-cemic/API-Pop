@@ -81,9 +81,9 @@ normalize_geography_batch <- function(con, table = "reports", batch_size = 1000)
   # Helper to clean strings
   clean_str <- function(x) {
     if (all(is.na(x))) return(x)
-    # Ensure UTF-8 before passing to stringi to avoid crashes
-    x <- iconv(x, from = "latin1", to = "UTF-8", sub = "")
-    x <- stringi::stri_trans_general(x, "Latin-ASCII") 
+    # Safely ensure UTF-8 without corrupting existing UTF-8 text
+    x <- enc2utf8(as.character(x))
+    x <- stringi::stri_trans_general(x, "Latin-ASCII")
     x <- tolower(x)
     x <- trimws(x)
     return(x)
@@ -183,7 +183,7 @@ add_filters_to_sql <- function(sql, con, eq_filters = list(), range_filters = li
     if (colname %in% c("country", "level1", "level2", "level3")) {
       colname_norm <- paste0(colname, "_norm")
       # Strip accents and normalize value for the SQL search
-      val_norm <- stringi::stri_trans_general(val, "Latin-ASCII")
+      val_norm <- tolower(stringi::stri_trans_general(val, "Latin-ASCII"))
       conditions <- c(conditions, build_eq(con, colname_norm, val_norm))
       
     } else if (colname == "symptom_description") {
