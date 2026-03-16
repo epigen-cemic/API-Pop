@@ -67,8 +67,16 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
                    stop("Unsupported file type")
       )
       
-      # Clean encoding
-      df[] <- lapply(df, function(x) if (is.character(x)) enc2utf8(as.character(x)) else x)
+      # Clean encoding and fix common mojibake using global fix_map
+      df[] <- lapply(df, function(x) {
+        if (is.character(x)) {
+          x <- enc2utf8(as.character(x))
+          x <- fix_accents(x)
+          return(x)
+        } else {
+          return(x)
+        }
+      })
       raw_data(df)
       
       # Show Mapping Modal

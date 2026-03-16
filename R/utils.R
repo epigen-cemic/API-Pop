@@ -81,9 +81,9 @@ normalize_geography_batch <- function(con, table = "reports", batch_size = 1000)
   # Helper to clean strings
   clean_str <- function(x) {
     if (all(is.na(x))) return(x)
-    # Safely ensure UTF-8 without corrupting existing UTF-8 text
     x <- enc2utf8(as.character(x))
-    x <- stringi::stri_trans_general(x, "Latin-ASCII")
+    x <- fix_accents(x) # Catch any mapping issues before stripping
+    x <- stringi::stri_trans_general(x, "Latin-ASCII") 
     x <- tolower(x)
     x <- trimws(x)
     return(x)
