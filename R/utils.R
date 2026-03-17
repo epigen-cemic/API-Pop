@@ -316,3 +316,78 @@ fix_encoding <- function(x) {
   
   return(x)
 }
+
+
+#' Apply Country-Specific Code Length Rules
+#'
+#' @description
+#' Applies padding rules to geographic code columns based on country-specific
+#' configuration. For each country defined in the configuration list, the function
+#' checks whether any geographic level (e.g., level1, level2, level3) includes a
+#' `code_length` rule. If present, values in the corresponding column are padded
+#' with leading zeros to match the required length.
+#'
+#' Only values shorter than the specified length are modified. Values that already
+#' meet or exceed the required length remain unchanged. The operation is applied
+#' selectively to rows matching each country.
+#'
+#' @param df A data.frame containing at least a `country` column and any geographic
+#'   columns referenced in the configuration (e.g., "level1", "level2", "level3").
+#'
+#' @param config_list A named list of country configurations (typically parsed from
+#'   `config.json`). Each country may contain a `mapping` list where individual
+#'   levels define a `db_column` and optional `code_length`.
+#'
+#' @return A data.frame with updated columns where padding rules have been applied.
+#'
+#' @details
+#' The function:
+#' \itemize{
+#'   \item Iterates over each country defined in the configuration.
+#'   \item Identifies rows in `df` matching that country.
+#'   \item Applies padding only to columns with a defined `code_length`.
+#'   \item Leaves all other values unchanged.
+#' }
+#'
+#' The function assumes that `df$country` values match the names of
+#' `config_list`.
+#'
+#' @keywords internal
+apply_code_length_rules <- function(df, config_list) {
+  
+  if (!"country" %in% names(df)) return(df)
+  
+  for (country_name in names(config_list)) {
+    
+    country_cfg <- config_list[[country_name]]
+    mapping <- country_cfg$mapping
+    
+    if (is.null(mapping)) next
+    
+    # rows for this country
+    idx <- which(df$country == country_name)
+    if (length(idx) == 0) next
+    
+    for (level_name in names(mapping)) {
+      
+      level_cfg <- mapping[[level_name]]
+      
+      # skip if no rule
+      if (is.null(level_cfg$code_length)) next
+      
+      col <- level_cfg$db_column
+      width <- level_cfg$code_length
+      
+      if (!col %in% names(df)) next
+      
+      # apply ONLY to matching country rows
+      df[[col]][idx] <- ifelse(
+        nchar(df[[col]][idx]) < width,
+        stringr::str_pad(df[[col]][idx], width, side = "left", pad = "0"),
+        df[[col]][idx]
+      )
+    }
+  }
+  
+  return(df)
+}

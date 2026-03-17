@@ -29,7 +29,8 @@
         "parent_col": "cde",
         "layer_name": "Fraction",
         "spatial_id": "cod_indec",
-        "name_col": "cod_indec"
+        "name_col": "cod_indec",
+        "code_length": 7
       }
     }
   }

@@ -108,6 +108,9 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
       if ("country" %in% names(df)) df$country_norm <- normalize(df$country)
       if ("level1" %in% names(df)) df$level1_norm <- normalize(df$level1)
       if ("level2" %in% names(df)) df$level2_norm <- normalize(df$level2)
+
+      # Apply config-driven padding rules
+      df <- apply_code_length_rules(df, ALL_CONFIGS)
       
       # 4. Fill remaining columns with NA and reorder
       for (col in setdiff(target_cols, names(df))) {
