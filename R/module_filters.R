@@ -233,16 +233,15 @@ filtersServer <- function(id, columns, display_names, population_layers) {
     active_filters <- eventReactive(input$run, {
       eq_filters <- list(); range_filters <- list()
       
-      # Safety: Ensure we only ever return a single string
-      normalize <- function(x) { 
+      # Renamed local wrapper to avoid colliding with utils.R
+      clean_input <- function(x) { 
         if (is.null(x) || length(x) == 0) return(NULL)
-        # Take only the first element if a vector accidentally arrives
+        
         val <- x[1] 
-        if (is.character(val) && val != "") {
-          stringi::stri_trans_general(val, "Latin-ASCII") 
-        } else {
-          val 
-        }
+        if (is.na(val) || val == "") return(NULL)
+        
+        # Calls your newly renamed global function from utils.R
+        return(normalize(val)) 
       }
       
       # 1. Standard Filters (Symptoms, Diagnosis, etc.)
@@ -251,13 +250,13 @@ filtersServer <- function(id, columns, display_names, population_layers) {
         col_type <- columns[[col]]
         
         if (col_type %in% c("text", "text_logic")) {
-          val <- normalize(input[[paste0("val_", col)]])
-          if (!is.null(val) && val != "") eq_filters[[col]] <- val
+          val <- clean_input(input[[paste0("val_", col)]])
+          if (!is.null(val)) eq_filters[[col]] <- val
         } else if (col_type == "date_or_range") {
           mode <- input[[paste0("mode_", col)]]
           if (mode == "exact") {
-            val <- normalize(input[[paste0("val_", col)]])
-            if (!is.null(val) && val != "") eq_filters[[col]] <- as.Date(val)
+            val <- clean_input(input[[paste0("val_", col)]])
+            if (!is.null(val)) eq_filters[[col]] <- as.Date(val)
           } else {
             rng <- input[[paste0("valrange_", col)]]
             if (!is.null(rng)) range_filters[[col]] <- as.Date(rng)
@@ -268,33 +267,23 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       # 2. Geography Logic 
       if (isTRUE(input$chk_location)) {
         
-        # Helper to get the Name (Label) of a selected ID
         get_name <- function(id_val, choices) {
           if (!isTruthy(id_val)) return(NULL)
-          # Choices are set as Name = ID, so we find the name matching the ID
           lbl <- names(choices)[which(choices == id_val)]
           if (length(lbl) == 0) return(id_val)
           return(lbl[1])
         }
         
-        # 1. Fetch the human-readable names using the stored choices
-        # We assume you save the options in a reactive or can access the input choice names
-        country_name <- input$country
-        level1_name  <- get_name(input$level1, session$userData$level1_choices)
-        level2_name  <- get_name(input$level2, session$userData$level2_choices)
-        level3_name  <- input$level3 # Level 3 is often already a code/name mix
-        
-        # 2. Map to the database names your SQL builder expects
         geo_values <- list(
-          country = country_name,
-          level1  = level1_name,
-          level2  = level2_name,
-          level3  = level3_name
+          country = input$country,
+          level1  = get_name(input$level1, session$userData$level1_choices),
+          level2  = get_name(input$level2, session$userData$level2_choices),
+          level3  = input$level3 
         )
         
         for (col in names(geo_values)) {
-          val <- normalize(geo_values[[col]])
-          if (!is.null(val) && val != "") eq_filters[[col]] <- val
+          val <- clean_input(geo_values[[col]])
+          if (!is.null(val)) eq_filters[[col]] <- val
         }
       }
       
@@ -302,12 +291,10 @@ filtersServer <- function(id, columns, display_names, population_layers) {
         eq_filters = eq_filters,
         range_filters = range_filters,
         age_range = input$age_range,
-        # We also return the raw values so the Results module knows the context
         country = input$country,
         level1 = input$level1,
         level2 = input$level2
       )
-      
     })
     
     return(active_filters)

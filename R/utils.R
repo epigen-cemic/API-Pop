@@ -1,162 +1,126 @@
-#' Fix Encoding to UTF-8 for specific columns
-#'
-#' Iterates through the country, province, and department columns of the specified table,
-#' converts Latin-1 encoding to UTF-8, and updates the database rows in place.
-#'
-#' @param con A DBIConnection object to the SQLite database.
-#' @param table Character string. The name of the table to update. Default is "reports".
-#' @return Invisible NULL.
+#' Force Data into UTF-8
+#' 
+#' Safely converts character vectors and dataframe character columns to UTF-8
+#' to prevent segfaults and ensure special characters render correctly in the UI.
+#' 
+#' @param x A character vector or data.frame
+#' @return The same object with UTF-8 encoded text
 #' @export
-fix_encoding_to_utf8 <- function(con, table = "reports") {
-  cols <- c("country", "province", "department")
-  for (col in cols) {
-    # Fetch rowid to ensure we update the exact correct row
-    rows <- DBI::dbGetQuery(con, sprintf("SELECT rowid, %s FROM %s", col, table))
-    
-    # Convert vector to UTF-8
-    rows[[col]] <- vapply(rows[[col]], function(x) {
-      enc2utf8(iconv(x, from = "latin1", to = "UTF-8"))
-    }, character(1))
-    
-    # Update row by row (safest for in-place encoding fixes)
-    for (i in seq_len(nrow(rows))) {
-      DBI::dbExecute(
-        con,
-        sprintf("UPDATE %s SET %s = ? WHERE rowid = ?", table, col),
-        params = list(rows[[col]][i], rows$rowid[i])
-      )
-    }
+to_utf8 <- function(x) {
+  if (is.data.frame(x)) {
+    x[] <- lapply(x, function(col) {
+      if (is.character(col)) {
+        return(iconv(col, from = "", to = "UTF-8"))
+      }
+      return(col)
+    })
+    return(x)
+  } else if (is.character(x)) {
+    return(iconv(x, from = "", to = "UTF-8"))
   }
-  message("Encoding fixed to UTF-8.")
+  return(x)
 }
 
-#' Convert Data Frame Character Columns to UTF-8
+#' @title Safely Read CSV Files with Encoding Detection
 #'
-#' Detects character columns in a data frame and forces their encoding from Latin-1 to UTF-8.
+#' @description 
+#' Reads the raw bytes of a CSV file to mathematically determine its encoding 
+#' before passing it to R's standard parser. This prevents the silent destruction 
+#' of special characters (like "ó" becoming "ï¿½") that happens when R incorrectly 
+#' guesses a file's encoding. Defaults to UTF-8 or Latin-1 based on the byte signature.
 #'
-#' @param df A data frame.
-#' @return The data frame with character columns converted to UTF-8.
-#' @export
-to_utf8 <- function(df) {
-  char_cols <- names(df)[sapply(df, is.character)]
-  for (colname in char_cols) {
-    # Safely forces UTF-8 on both Windows and Linux without corrupting data
-    df[[colname]] <- enc2utf8(as.character(df[[colname]]))
-    
-    # Optional: Catch any lingering mojibake
-    if (exists("fix_map")) {
-      df[[colname]] <- fix_accents(df[[colname]])
-    }
+#' @param filepath Character string. The file path to the CSV to be read.
+#'
+#' @return A data frame containing the parsed CSV data.
+#' @keywords internal
+read_csv_safely <- function(filepath) {
+  raw_bytes <- readBin(filepath, what = "raw", n = 10000)
+  detected <- stringi::stri_enc_detect(raw_bytes)
+  best_guess <- detected[[1]]$Encoding[1]
+  
+  if (is.na(best_guess) || best_guess == "ASCII") {
+    best_guess <- "UTF-8"
   }
+  
+  # Normalize common Latin encodings
+  if (grepl("windows|iso-8859|latin", tolower(best_guess))) {
+    best_guess <- "latin1"
+  }
+  
+  df <- utils::read.csv(
+    filepath,
+    stringsAsFactors = FALSE,
+    fileEncoding = best_guess,
+    colClasses = "character"
+  )
+  
   return(df)
 }
 
-#' Fix Common Accent Encoding Issues
+#' @title Master Wrapper for Reading Uploaded Data Files
 #'
-#' Replaces common mojibake (garbled text) with correct Spanish accented characters
-#' based on a predefined global map (`fix_map`).
+#' @description 
+#' Acts as a router to process various file types (CSV, XLSX, XML, SQLite/DBA) 
+#' using the appropriate reading functions. After reading, it iterates through 
+#' all character columns and explicitly flags them as UTF-8 in R's memory to 
+#' guarantee cross-platform stability.
 #'
-#' @param x A character vector.
-#' @return A character vector with corrected accents.
-#' @export
-fix_accents <- function(x) {
-  if (!is.character(x)) return(x)
-  # fix_map must be defined in global.R
-  if (!exists("fix_map")) return(x)
+#' @param filepath Character string. The file path to the uploaded file.
+#' @param ext Character string. The file extension (e.g., "csv", "xlsx", "xml", "dba").
+#' @param target_table Character string. The name of the table to extract if the 
+#'   uploaded file is a SQLite database (.dba).
+#'
+#' @return A data frame with all character columns safely forced into UTF-8 encoding.
+#' @keywords internal
+read_uploaded_file <- function(filepath, ext, target_table) {
+  df <- switch(ext,
+               "csv"  = read_csv_safely(filepath),
+               "xlsx" = readxl::read_excel(filepath),
+               "xml"  = {
+                 doc <- xml2::read_xml(filepath)
+                 nodes <- xml2::as_list(doc)
+                 as.data.frame(do.call(rbind, lapply(nodes, unlist)), stringsAsFactors = FALSE)
+               },
+               "dba"  = {
+                 tmp <- tempfile(fileext = ".sqlite")
+                 file.copy(filepath, tmp, overwrite = TRUE)
+                 con2 <- DBI::dbConnect(RSQLite::SQLite(), tmp)
+                 d <- DBI::dbReadTable(con2, target_table)
+                 DBI::dbDisconnect(con2)
+                 d
+               },
+               stop("Unsupported file type")
+  )
   
-  for (bad in names(fix_map)) {
-    x <- gsub(bad, fix_map[bad], x, fixed = TRUE)
-  }
-  x
+  # ✅ ONLY encoding fix
+  df[] <- lapply(df, fix_encoding)
+  
+  return(df)
 }
 
-#' Normalize Geography Columns (Generic)
+#' @title String Normalization
 #'
-#' Populates generic normalization columns (`level1_norm`, `level2_norm`, `country_norm`) 
-#' by removing accents, converting to lowercase, and trimming whitespace. 
-#' This allows for case-insensitive and accent-insensitive SQL querying.
+#' @description 
+#' Standardizes text strings for database filtering and searching. It safely 
+#' strips accents using the `stringi` ICU transliteration engine,
+#' converts text to lowercase, and trims whitespace. 
+#' Crucially, it does not delete unrecognized bytes, preventing strings from 
+#' being truncated if corrupted data is accidentally passed to it.
 #'
-#' @param con A DBIConnection object to the SQLite database.
-#' @param table Character string. The table name. Default is "reports".
-#' @param batch_size Integer. Number of rows to process per transaction. Default is 1000.
-#' @return Invisible NULL.
-#' @export
-normalize_geography_batch <- function(con, table = "reports", batch_size = 1000) {
+#' @param x A character vector (or a vector that can be coerced to character) 
+#'   to be normalized.
+#'
+#' @return A character vector of the same length as `x` containing the normalized strings.
+#' @keywords internal
+normalize <- function(x) {
+  if (is.null(x) || length(x) == 0) return(NA)
+  v <- as.character(x)
+  valid <- !is.na(v) & v != ""
   
-  # Helper to clean strings
-  clean_str <- function(x) {
-    if (all(is.na(x))) return(x)
-    x <- enc2utf8(as.character(x))
-    x <- fix_accents(x) # Catch any mapping issues before stripping
-    x <- stringi::stri_trans_general(x, "Latin-ASCII") 
-    x <- tolower(x)
-    x <- trimws(x)
-    return(x)
-  }
+  v[valid] <- iconv(v[valid], from = "", to = "UTF-8")
+  v[valid] <- stringi::stri_trans_general(v[valid], "Latin-ASCII")
   
-  # 1. Check which columns exist in the DB
-  fields <- DBI::dbListFields(con, table)
-  
-  # Define pairs: Source Column -> Target Norm Column
-  pairs <- list()
-  if ("level1" %in% fields)  pairs[["level1"]]  <- "level1_norm"
-  if ("level2" %in% fields)  pairs[["level2"]]  <- "level2_norm"
-  if ("country" %in% fields) pairs[["country"]] <- "country_norm"
-  
-  if (length(pairs) == 0) return()
-  
-  # 2. Identify rows that need update (where norm is NULL)
-  where_clauses <- sapply(pairs, function(tgt) paste0(tgt, " IS NULL"))
-  where_sql <- paste(where_clauses, collapse = " OR ")
-  
-  count_query <- sprintf("SELECT count(*) FROM %s WHERE %s", table, where_sql)
-  total_rows <- tryCatch(DBI::dbGetQuery(con, count_query)[[1]], error = function(e) 0)
-  
-  if (total_rows == 0) {
-    message("No rows need normalization.")
-    return()
-  }
-  
-  message(paste("Normalizing", total_rows, "rows..."))
-  
-  # 3. Process in batches
-  processed <- 0
-  while (processed < total_rows) {
-    cols_to_select <- paste(c("rowid", names(pairs)), collapse = ", ")
-    select_sql <- sprintf("SELECT %s FROM %s WHERE %s LIMIT %d", 
-                          cols_to_select, table, where_sql, batch_size)
-    
-    batch <- DBI::dbGetQuery(con, select_sql)
-    if (nrow(batch) == 0) break
-    
-    updates <- list()
-    for (src in names(pairs)) {
-      tgt <- pairs[[src]]
-      norm_values <- clean_str(batch[[src]])
-      updates[[tgt]] <- norm_values
-    }
-    
-    # Write back to DB using a transaction
-# Write back to DB using a pool-compatible transaction
-    tryCatch({
-      pool::poolWithTransaction(con, function(conn) {
-        set_clause <- paste(paste0(unlist(pairs), " = ?"), collapse = ", ")
-        update_sql <- sprintf("UPDATE %s SET %s WHERE rowid = ?", table, set_clause)
-        
-        params <- unname(updates)
-        params[[length(params) + 1]] <- batch$rowid
-        
-        # Note: We use 'conn' (the checked-out connection) here, not 'con' (the pool)
-        DBI::dbExecute(conn, update_sql, params = params)
-      })
-    }, error = function(e) {
-      stop("Error during normalization batch: ", e$message)
-    })
-    
-    processed <- processed + nrow(batch)
-    message(sprintf("Processed %d / %d", processed, total_rows))
-  }
-  message("Normalization complete.")
+  return(tolower(trimws(v)))
 }
 
 #' Add Filters to SQL Query
@@ -188,7 +152,7 @@ add_filters_to_sql <- function(sql, con, eq_filters = list(), range_filters = li
     if (colname %in% c("country", "level1", "level2", "level3")) {
       colname_norm <- paste0(colname, "_norm")
       # Strip accents and normalize value for the SQL search
-      val_norm <- tolower(stringi::stri_trans_general(val, "Latin-ASCII"))
+      val_norm <- normalize(val)
       conditions <- c(conditions, build_eq(con, colname_norm, val_norm))
       
     } else if (colname == "symptom_description") {
@@ -272,58 +236,83 @@ build_logic <- function(con, colname, val) {
 fetch_options <- function(gpkg_path, country, level_key, parent_key = NULL, parent_val = NULL) {
   # 1. Validation
   if (!exists("ALL_CONFIGS") || is.null(country) || country == "") return(character(0))
+  
   config <- ALL_CONFIGS[[country]]
   target_map <- config$mapping[[level_key]]
   if (is.null(target_map)) return(character(0))
   
-  name_col <- if(!is.null(target_map$name_col)) target_map$name_col else "nam"
-  id_col   <- if(!is.null(target_map$spatial_id)) target_map$spatial_id else "rowid"
+  name_col <- if (!is.null(target_map$name_col)) target_map$name_col else "nam"
+  id_col   <- if (!is.null(target_map$spatial_id)) target_map$spatial_id else "rowid"
   
   # 2. SQL Build (ID-BASED)
   if (is.null(parent_key) || is.null(parent_val) || parent_val == "") {
-    sql <- sprintf("SELECT DISTINCT %s, %s FROM %s ORDER BY %s", 
-                   name_col, id_col, target_map$layer_name, name_col)
+    
+    sql <- sprintf(
+      "SELECT DISTINCT %s, %s FROM %s ORDER BY %s",
+      name_col, id_col, target_map$layer_name, name_col
+    )
+    
   } else {
+    
     parent_map <- config$mapping[[parent_key]]
-    sql <- sprintf("
-      SELECT DISTINCT c.%s, c.%s
-      FROM %s c
-      JOIN %s p ON CAST(c.%s AS TEXT) = CAST(p.%s AS TEXT)
-      WHERE p.%s = '%s'
-      ORDER BY c.%s", 
-                   name_col, id_col, target_map$layer_name, parent_map$layer_name, 
-                   target_map$parent_col, parent_map$spatial_id, 
-                   parent_map$spatial_id, parent_val, name_col)
+    
+    sql <- sprintf(
+      "SELECT DISTINCT c.%s, c.%s
+       FROM %s c
+       JOIN %s p ON CAST(c.%s AS TEXT) = CAST(p.%s AS TEXT)
+       WHERE p.%s = '%s'
+       ORDER BY c.%s",
+      name_col, id_col,
+      target_map$layer_name, parent_map$layer_name,
+      target_map$parent_col, parent_map$spatial_id,
+      parent_map$spatial_id, parent_val,
+      name_col
+    )
   }
   
-  # 3. Execution & Dual-Value Return
+  # 3. Execute (NO encoding fix anymore)
   res <- tryCatch({
-    data <- sf::st_read(gpkg_path, query = sql, quiet = TRUE)
-    data <- to_utf8(data) 
     
-    # RE-FIXED: Return names = "Belén", values = "06" (the ID)
-    # This makes the dropdowns work perfectly again.
-    choices <- setNames(as.character(data[[id_col]]), as.character(data[[name_col]]))
+    data <- sf::st_read(gpkg_path, query = sql, quiet = TRUE)
+    
+    # Named vector: names = labels (UI), values = IDs (server logic)
+    choices <- setNames(
+      as.character(data[[id_col]]),
+      as.character(data[[name_col]])
+    )
+    
     choices
     
   }, error = function(e) {
     message("Fetch Error: ", e$message)
     return(character(0))
   })
+  
   return(res)
 }
 
 
-#' Check Valid Encoding
+#' Fix character encoding to UTF-8
 #'
-#' Checks if a string has valid encoding by attempting to capture its output.
+#' Attempts to ensure that a character vector is properly encoded in UTF-8.
+#' Valid UTF-8 strings are left unchanged, while invalid entries are assumed
+#' to be encoded in Latin-1 and are converted to UTF-8. Non-character inputs
+#' are returned unchanged.
+#' Note that this approach cannot recover text that has already been irreversibly
+#' corrupted
+#' @param x A vector. If character, encoding will be validated and corrected.
 #'
-#' @param x Character string.
-#' @return Boolean. TRUE if valid, FALSE otherwise.
+#' @return A vector of the same length as x, with character elements safely
+#' converted to UTF-8 when needed.
 #' @keywords internal
-validEnc <- function(x) {
-  tryCatch({
-    utils::capture.output(cat(x, file = nullfile()))
-    return(TRUE)
-  }, error = function(e) FALSE, warning = function(w) FALSE)
+fix_encoding <- function(x) {
+  if (!is.character(x)) return(x)
+  
+  # keep valid UTF-8 as is
+  valid_utf8 <- !is.na(iconv(x, from = "UTF-8", to = "UTF-8"))
+  
+  # fix only invalid ones (likely Latin-1)
+  x[!valid_utf8] <- iconv(x[!valid_utf8], from = "latin1", to = "UTF-8", sub = "")
+  
+  return(x)
 }

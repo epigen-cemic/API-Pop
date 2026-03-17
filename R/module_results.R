@@ -38,13 +38,6 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
       valid_cols <- intersect(target_cols, names(df))
       df <- df[, valid_cols, drop = FALSE]
       
-      # --- FIX ACCENTS ---
-      # Fix accents for geographic columns if they exist
-      geo_cols_to_fix <- intersect(c("country", "level1", "level2", "level3"), names(df))
-      
-      # Note: fix_accents needs to be available in the environment or passed in
-      if (length(geo_cols_to_fix) > 0) df[geo_cols_to_fix] <- lapply(df[geo_cols_to_fix], fix_accents)
-      
       # --- APPLY DISPLAY NAMES ---
       # Only rename columns that we actually have
       current_names <- colnames(df)

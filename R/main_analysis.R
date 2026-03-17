@@ -113,18 +113,10 @@ analysisServer <- function(id, con, gpkg_path) {
       sql <- paste("SELECT", paste(select_cols, collapse = ", "), 
                    "FROM", DBI::dbQuoteIdentifier(con, "reports"))
       
-      # C. THE FIX: Merge Location into the filters
-      # We collect the current location values into a list
-      geo_values <- list(
-        country = filters$country,
-        level1 = filters$level1,
-        level2 = filters$level2,
-        level3 = filters$level3
-      )
-      
+
       # Combine standard filters with these geography selections
       # This ensures the SQL builder sees them as equality constraints
-      all_filters <- c(filters$eq_filters, geo_values)
+      all_filters <- filters$eq_filters
       
       # D. Build the final SQL with the merged list
       sql <- add_filters_to_sql(
@@ -136,7 +128,9 @@ analysisServer <- function(id, con, gpkg_path) {
       )
       
       result <- DBI::dbGetQuery(con, sql)
-      to_utf8(result)
+      
+      # Just return the result directly! No double-encoding.
+      return(result) 
     })
     
     # 4. Initialize Results Sub-Module

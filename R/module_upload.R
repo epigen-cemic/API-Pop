@@ -43,40 +43,9 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
       filepath <- input$file$datapath
       ext <- tools::file_ext(filepath)
       
-      df <- switch(ext,
-                   "csv"  = {
-                     tryCatch({
-                       utils::read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "UTF-8")
-                     }, warning = function(w) {
-                       utils::read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "latin1")
-                     }, error = function(e) {
-                       utils::read.csv(filepath, stringsAsFactors = FALSE, fileEncoding = "latin1")
-                     })
-                   },
-                   "xlsx" = readxl::read_excel(filepath),
-                   "xlsx" = readxl::read_excel(filepath),
-                   "xml"  = {
-                     doc <- xml2::read_xml(filepath); nodes <- xml2::as_list(doc)
-                     as.data.frame(do.call(rbind, lapply(nodes, unlist)), stringsAsFactors = FALSE)
-                   },
-                   "dba"  = {
-                     tmp <- tempfile(fileext = ".sqlite"); file.copy(filepath, tmp, overwrite = TRUE)
-                     con2 <- DBI::dbConnect(RSQLite::SQLite(), tmp); df <- DBI::dbReadTable(con2, target_table)
-                     DBI::dbDisconnect(con2); df
-                   },
-                   stop("Unsupported file type")
-      )
+      # This now returns a CLEAN UTF-8 dataframe thanks to read_csv_safely
+      df <- read_uploaded_file(filepath, ext, target_table)
       
-      # Clean encoding and fix common mojibake using global fix_map
-      df[] <- lapply(df, function(x) {
-        if (is.character(x)) {
-          x <- enc2utf8(as.character(x))
-          x <- fix_accents(x)
-          return(x)
-        } else {
-          return(x)
-        }
-      })
       raw_data(df)
       
       # Show Mapping Modal
@@ -122,10 +91,9 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
     observeEvent(input$final_upload, {
       df <- raw_data()
       req(nrow(df) > 0)
-      df_cols <- names(df)
-      unmatched_cols <- setdiff(df_cols, target_cols)
       
-      # Rename ONLY the unmatched columns based on what the user selected in the UI
+      # 1. Map columns based on UI
+      unmatched_cols <- setdiff(names(df), target_cols)
       for (fc in unmatched_cols) {
         mapped_val <- input[[paste0("map_", fc)]]
         if (!is.null(mapped_val) && mapped_val != "") {
@@ -133,20 +101,22 @@ uploadServer <- function(id, con, target_table = "reports", target_cols) {
         }
       }
       
-      # Strip out any columns from the uploaded file that still don't map to the DB
+      # 2. Keep only DB columns
       df <- df[, names(df) %in% target_cols, drop = FALSE]
       
-      # Add missing database columns to the dataframe as NA
+      # 3. Normalize cleanly using utils.R before the database append
+      if ("country" %in% names(df)) df$country_norm <- normalize(df$country)
+      if ("level1" %in% names(df)) df$level1_norm <- normalize(df$level1)
+      if ("level2" %in% names(df)) df$level2_norm <- normalize(df$level2)
+      
+      # 4. Fill remaining columns with NA and reorder
       for (col in setdiff(target_cols, names(df))) {
         df[[col]] <- NA
       }
-      
-      # Reorder columns to exactly match the database table structure
       df <- df[, target_cols, drop = FALSE]
       
-      # Append and Normalize
+      # 5. Push to Database
       pool::dbAppendTable(con, target_table, df)
-      normalize_geography_batch(con, table = target_table, batch_size = 1000)
       
       removeModal()
       showNotification(paste("Data merged into", target_table, "successfully."), type = "message")
