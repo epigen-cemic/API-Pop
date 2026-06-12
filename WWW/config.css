@@ -209,11 +209,50 @@ body {
   margin-top: var(--space-md);
 }
 
-.upload-log-panel {
-  margin-top: var(--space-md);
+.data-source-notice {
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.35;
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
 }
 
-.upload-log-panel .dataTables_wrapper {
+.data-source-notice strong {
+  color: var(--color-brand-dark);
+  font-size: var(--font-size-sm);
+}
+
+.data-source-notice span,
+.data-source-notice small {
+  display: block;
+  font-size: var(--font-size-xs);
+}
+
+.upload-status-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: space-between;
+  margin: var(--space-sm) 0 var(--space-lg) 0;
+}
+
+.upload-status-summary {
+  margin: 0 !important;
+}
+
+.upload-review-btn {
+  border-radius: var(--radius-sm) !important;
+  font-size: var(--font-size-xs) !important;
+  padding: 4px 8px !important;
+  white-space: nowrap;
+}
+
+.modal-body .dataTables_wrapper {
   font-size: var(--font-size-xs);
 }
 
