@@ -1,155 +1,377 @@
-/* ==========================================
-   1. GLOBAL CONFIGURATION (The "Brain")
-   ========================================== */
+/* =============================================================================
+   API-POP Theme
+   -----------------------------------------------------------------------------
+   Dashboard-aligned theme. Most visual changes should be made in :root.
+   ============================================================================= */
+
 :root {
-  --nav-bg-color: #2d332a;
-  --hero-bg-color: #5b6d5b;
-  --accent-orange: #e67e22;
-  --text-white: #ffffff;
-  --text-gray: #b0b0b0;
+  --color-brand-dark: #1E2A15;
+  --color-brand-dark-2: #324027;
+  --color-brand-sage: #48563F;
+  --color-brand-sage-soft: #5B6D5B;
+  --color-brand-orange: #F69342;
 
-  --main-bg-color: #fdfdfb;
-  --panel-bg-color: #ffffff;
-  --border-light: #dee2e6;
+  --color-white: #FFFFFF;
+  --color-page-bg: #F8F5F1;
+  --color-card-bg: #FFFFFF;
+  --color-sidebar-bg: #F1EDE7;
+  --color-border: #E5E2DC;
+  --color-border-strong: #C9C2B8;
+  --color-text: #333333;
+  --color-text-muted: #666666;
+  --color-success-bg: #DCEFD6;
+  --color-success-text: #1F4A24;
+  --color-warning-bg: #FFF3CD;
+  --color-warning-text: #6C4C00;
+  --color-error-bg: #FFE5E5;
+  --color-error-text: #8A0000;
 
-  --btn-green-bg: #434d3e;
-  --btn-green-hover: #353d31;
-  --link-blue: #2980b9;
-  --error-red: #dc3545;
+  --font-family-base: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 16px;
+  --font-size-hero: 28px;
 
-  --max-content-width: 100%;
-  --sidebar-fixed-width: 380px; 
+  --space-xs: 6px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 14px;
+  --space-xl: 18px;
+  --space-2xl: 20px;
+  --space-3xl: 24px;
+  --space-4xl: 30px;
+  --space-page-x: 40px;
+
+  --topbar-height: 50px;
+  --logo-width: 180px;
+  --logo-height: 30px;
+  --sidebar-width: 390px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.10);
+  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.08);
+
+  --nav-bg-color: var(--color-brand-dark);
+  --hero-bg-color: var(--color-brand-sage);
+  --accent-orange: var(--color-brand-orange);
 }
 
-/* ==========================================
-   2. GLOBAL BODY & TEXT STYLES
-   ========================================== */
+::selection {
+  background-color: var(--color-white) !important;
+  color: #000000 !important;
+}
+
 body {
-  background-color: var(--main-bg-color);
-  margin: 0;
-  padding: 0;
-  font-family: 'Open Sans', 'Segoe UI', Arial, sans-serif;
+  margin: 0 !important;
+  background-color: var(--color-page-bg);
+  color: var(--color-text);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
 }
 
-/* ==========================================
-   3. HEADER ARCHITECTURE
-   ========================================== */
-.nav-bar { background-color: var(--nav-bg-color); height: 60px; display: flex; }
-.nav-content { width: 100%; padding: 0 40px; display: flex; align-items: center; }
-.header-logo-left { height: 40px; width: 220px; background-image: url('AnalysisforAction_white.png'); background-size: contain; background-repeat: no-repeat; }
+.container-fluid {
+  padding: 0 !important;
+}
 
-.hero-section {
-  background-color: var(--hero-bg-color);
-  width: 100%;
-  height: 200px;
+.nav-bar {
+  background-color: var(--color-brand-dark);
+  height: var(--topbar-height);
   display: flex;
   align-items: center;
-  border-bottom: 4px solid var(--accent-orange); 
+  padding: 0 var(--space-page-x);
+  width: 100%;
 }
-.hero-content { width: 100%; padding: 0 40px; color: var(--text-white); }
-.app-title { font-size: 5rem; font-weight: 300; margin: 0; }
 
-/* ==========================================
-   4. MAIN CONTENT & GRID OVERRIDES (The Gap Fix)
-   ========================================== */
-.content-wrapper {
+.nav-content {
+  width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start; /* Keeps sidebar on the left */
-  padding: 20px 40px;
+  align-items: center;
 }
 
-/* Force the sidebar-mainpanel container to use flex */
-.row {
+.header-logo-left {
+  height: var(--logo-height);
+  width: var(--logo-width);
+  background-image: url("AnalysisforAction_white.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: left center;
+}
+
+.hero-section {
+  background-color: var(--color-brand-sage);
+  padding: var(--space-4xl) var(--space-page-x);
+  border-bottom: 4px solid var(--color-brand-orange);
+}
+
+.hero-content {
+  width: 100%;
+  color: var(--color-white);
+}
+
+.app-title {
+  color: var(--color-white) !important;
+  font-size: var(--font-size-hero);
+  font-weight: 300;
+  margin: 0 !important;
+  letter-spacing: 1px;
+}
+
+.content-wrapper {
+  width: 100%;
+  padding: var(--space-3xl) var(--space-page-x);
+}
+
+.api-pop-shell {
+  width: 100%;
+}
+
+.api-pop-shell .row {
   display: flex !important;
   flex-direction: row !important;
   width: 100% !important;
   margin: 0 !important;
+  gap: var(--space-3xl);
 }
 
-.col-sm-4 {
-  width: var(--sidebar-fixed-width) !important;
-  flex: 0 0 var(--sidebar-fixed-width) !important;
-  max-width: var(--sidebar-fixed-width) !important;
+.api-pop-shell .col-sm-4 {
+  width: var(--sidebar-width) !important;
+  flex: 0 0 var(--sidebar-width) !important;
+  max-width: var(--sidebar-width) !important;
   padding: 0 !important;
 }
 
-.col-sm-8 {
+.api-pop-shell .col-sm-8 {
   flex: 1 1 auto !important;
   width: auto !important;
-  padding-left: 40px !important;
+  padding: 0 !important;
 }
- 
-/* ==========================================
-   5. SIDEBAR & FILTER COMPONENTS
-   ========================================== */
-.well, .sidebar, .sidebarPanel {
-  background-color: #c2c2c2 !important;
-  border: 1px solid var(--border-light) !important;
-  border-radius: 8px;
-  padding: 20px !important;
+
+.well,
+.api-sidebar-panel {
+  background-color: var(--color-sidebar-bg) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-2xl) !important;
+}
+
+.sidebar-section-title {
+  color: var(--color-brand-dark);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-md) 0;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.sidebar-section-title:not(:first-child) {
+  margin-top: var(--space-2xl);
 }
 
 .filter-box {
-  background-color: #fff;
-  border: 1px solid var(--border-light);
-  padding: 15px;
-  margin-bottom: 12px;
-  border-radius: 6px;
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
   display: block;
   width: 100% !important;
 }
 
-
 .filter-box label {
-  white-space: nowrap !important; /* Forces text into one line */
+  color: var(--color-text);
   display: inline-block !important;
-  margin-left: 8px;
   font-weight: 700 !important;
+  margin-left: var(--space-xs);
+  white-space: nowrap !important;
 }
-
 
 .filter-box .shiny-input-container {
   width: 100% !important;
-  margin: 10px 0 !important;
+  margin: var(--space-md) 0 !important;
   display: block !important;
 }
 
-/* ==========================================
-   6. BUTTONS & ACTIONS (The Color Fix)
-   ========================================== */
-.btn-container {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 20px;
-  margin-bottom: 30px;
+.filter-help-text {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  margin: var(--space-sm) 0 var(--space-lg) 0;
 }
 
-/* Specific targeting for your Run Query and Reset buttons */
-.btn-container .btn, 
-.btn-container .action-button, 
-.btn-container .shiny-download-link {
-  flex: 1;
-  height: 42px;
-  border-radius: 6px !important;
-  font-weight: 500 !important;
+.upload-modal-help {
+  color: var(--color-text-muted);
+  margin-top: var(--space-md);
+}
+
+.upload-log-panel {
+  margin-top: var(--space-md);
+}
+
+.upload-log-panel .dataTables_wrapper {
+  font-size: var(--font-size-xs);
+}
+
+.btn-container {
   display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.btn-container .btn,
+.btn-container .action-button,
+.btn-container .shiny-download-link,
+.upload-primary-btn {
+  border-radius: var(--radius-md) !important;
+  font-weight: 600 !important;
+  min-height: 40px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none !important;
 }
 
-/* Fix: Color for Run Query (using ID from your screenshot) */
-#main_module-filters_mod-run, .btn-block {
-  background-color: var(--btn-green-bg) !important;
-  color: white !important;
-  border: none !important;
+.btn-container .btn,
+.btn-container .action-button,
+.btn-container .shiny-download-link {
+  flex: 1;
 }
 
-/* Fix: Color for Reset Selections */
-#main_module-filters_mod-reset {
-  background-color: white !important;
-  color: #333 !important;
-  border: 1px solid var(--border-light) !important;
+#main_module-upload_mod-upload_btn,
+#main_module-filters_mod-run,
+.btn-primary,
+.btn-block {
+  background-color: var(--color-brand-sage) !important;
+  border: 1px solid var(--color-brand-sage) !important;
+  color: var(--color-white) !important;
+}
+
+#main_module-upload_mod-upload_btn:hover,
+#main_module-filters_mod-run:hover,
+.btn-primary:hover,
+.btn-block:hover {
+  background-color: var(--color-brand-dark-2) !important;
+  border-color: var(--color-brand-dark-2) !important;
+  color: var(--color-white) !important;
+}
+
+#main_module-filters_mod-reset,
+.btn-default {
+  background-color: var(--color-white) !important;
+  border: 1px solid var(--color-border-strong) !important;
+  color: var(--color-text) !important;
+}
+
+.api-downloads .shiny-download-link {
+  background-color: var(--color-brand-dark) !important;
+  border: 1px solid var(--color-brand-dark) !important;
+  color: var(--color-white) !important;
+}
+
+.api-results-card {
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  min-height: 520px;
+  padding: var(--space-2xl);
+  width: 100%;
+}
+
+.output-card-title {
+  color: var(--color-brand-dark);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dataTables_wrapper {
+  width: 100%;
+}
+
+table.dataTable {
+  border-collapse: collapse !important;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+table.dataTable thead th {
+  background-color: var(--color-brand-dark-2);
+  color: var(--color-white);
+  border-bottom: none !important;
+}
+
+table.dataTable tbody td {
+  border-color: var(--color-border) !important;
+}
+
+.dataTables_wrapper .dt-buttons .btn,
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background-color: var(--color-brand-sage) !important;
+  border: 1px solid var(--color-brand-sage) !important;
+  color: var(--color-white) !important;
+}
+
+.alert,
+.alert-success,
+.alert-warning {
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.alert-success {
+  background-color: var(--color-success-bg) !important;
+  color: var(--color-success-text) !important;
+  border: 1px solid #B9DCA9 !important;
+}
+
+.alert-warning {
+  background-color: var(--color-warning-bg) !important;
+  color: var(--color-warning-text) !important;
+  border: 1px solid #E0C36A !important;
+}
+
+.modal-content {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+}
+
+.modal-header {
+  background-color: var(--color-brand-sage);
+  color: var(--color-white);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.modal-title {
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .content-wrapper {
+    padding: var(--space-xl);
+  }
+
+  .api-pop-shell .row {
+    flex-direction: column !important;
+  }
+
+  .api-pop-shell .col-sm-4,
+  .api-pop-shell .col-sm-8 {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+
+  .btn-container {
+    flex-direction: column;
+  }
 }

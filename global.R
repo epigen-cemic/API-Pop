@@ -22,6 +22,14 @@ library(dplyr)
 library(here)
 library(xml2)
 
+# Shared helpers adapted from the Digital Dashboard pattern
+source(here::here("R", "shared", "config_helpers.R"))
+source(here::here("R", "shared", "export_helpers.R"))
+source(here::here("R", "shared", "table_helpers.R"))
+source(here::here("R", "shared", "file_manager.R"))
+source(here::here("R", "shared", "upload_validation.R"))
+source(here::here("R", "shared", "database_helpers.R"))
+
 # Load helper functions and modules
 source(here::here("R", "utils.R"))
 source(here::here("R", "module_filters.R"))
@@ -35,6 +43,7 @@ source(here::here("R", "main_analysis.R"))
 # config::get() automatically reads the active environment from .Renviron
 # Force config to look in the exact project root
 app_config <- config::get(file = here::here("config.yaml"))
+data_source_settings <- get_data_source_settings(app_config)
 
 # Load the country-specific JSON config
 config_path <- here::here(app_config$json_config_path)
@@ -50,13 +59,11 @@ gpkg_path <- here::here("data", app_config$gpkg_name)
 # ------------------------------------------------------------------------------
 # 3. DATABASE POOL CONNECTION
 # ------------------------------------------------------------------------------
-# Initialize the pool instead of a single connection
-pool <- pool::dbPool(
-  drv = RSQLite::SQLite(),
-  dbname = here::here("data", app_config$db_name)
-)
+# Initialize a config-driven database connection pool.
+pool <- connect_app_database(app_config, create_pool = TRUE)
 
-table_name <- "reports"
+table_name <- get_database_table(app_config)
+ensure_reports_schema(pool, table_name)
 # dbListFields works exactly the same with a pool object
 reports_cols <- DBI::dbListFields(pool, table_name)
 

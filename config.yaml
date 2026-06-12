@@ -2,8 +2,26 @@ default:
   db_name: "your_database.dba"
   gpkg_name: "Argentina.gpkg"
   json_config_path: "config.json"
+  data_source:
+    # mode can be "local" or "external_database".
+    # upload_enabled keeps manual file uploads available in either mode.
+    mode: "local"
+    upload_enabled: true
+  database:
+    type: "sqlite"
+    path: "data/your_database.dba"
+    table: "reports"
 
 production:
   db_name: "prod_database.dba"
   gpkg_name: "Argentina.gpkg"
   json_config_path: "config.json"
+  data_source:
+    # mode can be "local" or "external_database".
+    # upload_enabled keeps manual file uploads available in either mode.
+    mode: "local"
+    upload_enabled: true
+  database:
+    type: "sqlite"
+    path: "data/prod_database.dba"
+    table: "reports"

@@ -1,69 +1,141 @@
-# API-Pop - Formulario de Reporte Rápido de Casos Sospechosos
+# API-POP – Herramienta de filtrado de casos sospechosos y salidas poblacionales
 
-**Versión:** v1.3 
-**Despliegue:** [https://epigen.shinyapps.io/API-Pop/](https://epigen.shinyapps.io/API-Pop/)
+**Versión:** `v2.0`
 
-## Descripción
+API-POP es una aplicación R/Shiny para filtrar registros de casos sospechosos y generar salidas compatibles con análisis epidemiológicos y herramientas RAP como CUSUM RAP, Geospatial RAP y el Digital Dashboard.
 
-Esta aplicación Shiny forma parte del Work Package WS5 (WP1.1) del proyecto PPT-UK – Argentina. El objetivo principal de este producto es ofrecer al usuario una plataforma accesible con tamaños de poblaciones estimados actualizados para grupos susceptibles o en riesgo. Estos estimados, estratificados por sexo, edad, y ubicación geografica pueden ser usados como denominadores en calculos epidemiologicos tales como tasas de incidencia y prevalencia, así como proyecciones de casos esperados para vigilancia y análisis epidemiológico.
+## Novedades de la versión 2.0
 
+- Revisión de múltiples archivos cargados.
+- Estado de archivos permitidos/no permitidos antes de anexar registros.
+- Tabla de revisión de archivos movida a una ventana emergente.
+- Flujo de datos cargados localmente sin exponer detalles internos de base de datos al usuario.
+- Soporte para conexión a base de datos externa.
+- Las cargas de archivos pueden seguir habilitadas aunque exista una base externa configurada.
+- Nombres de niveles geográficos controlados por configuración.
+- Soporte para `level3_norm` en filtros de tercer nivel.
+- La salida semanal usa `n_cases`.
+- Nombres de descarga con fecha y hora.
+- Estilo visual alineado con el Digital Dashboard.
+- Estructura de funciones compartidas en `R/shared/`.
 
+## Funcionalidades
 
-## Características
-- Informacion actualizada de locación y población
-- Descarga en CSV de todos los formularios filtrados
-- Descarga en CSV de casos por cada semana y locación
-- Imagen de fondo institucional (SVG CEMIC)
+- Filtros dinámicos por país y niveles geográficos.
+- Filtros demográficos según los campos disponibles, como sexo y fecha de nacimiento.
+- Filtro por fecha de inicio de síntomas.
+- Filtros por diagnóstico sospechado y descripción de síntomas.
+- Descarga de lista detallada de casos filtrados.
+- Descarga de resumen semanal de casos y población.
+- Fuente de datos local o externa configurable.
+- Soporte para los formatos de carga ya existentes, incluyendo CSV, Excel, XML y archivos de base local cuando estén habilitados.
 
-## Cómo Ejecutarla Localmente
+## Requisitos
 
-### Requisitos
-- R (>= 4.2.0)
-- RStudio
-- Paquetes necesarios:
-  ```r
-  install.packages(c("shiny", "dplyr", "uuid", "httr", "jsonlite", "rsconnect", "leaflet", "shinyjs", "here", "arrow"))
-  ```
-- Versión de Rcpp compatible:
-  ```r
-  install.packages("remotes")
-  remotes::install_version("Rcpp", version = "1.0.11")
-  ```
+Recomendado:
 
-### Estructura del Proyecto
+- R >= 4.2
+- RStudio u otro IDE de R
+- Paquetes principales:
+
+```r
+install.packages(c(
+  "shiny",
+  "shinyjs",
+  "DT",
+  "dplyr",
+  "DBI",
+  "RSQLite",
+  "pool",
+  "config",
+  "yaml",
+  "jsonlite",
+  "readr",
+  "readxl",
+  "xml2",
+  "here",
+  "uuid"
+))
 ```
-API-Pop/
-├── app.R
-└── www/
-    └── Imagen_FondoPPT_CEMIC.svg
-    └── config.css
-└── R/
-    └── modulos.R
-└── data/
-    └── información geografica.gpgg
-```
 
-### Ejecutar la App
+Los despliegues con base de datos externa pueden requerir paquetes o drivers adicionales, como `odbc`.
+
+## Ejecutar localmente
+
 ```r
 setwd("ruta/a/API-Pop")
 shiny::runApp()
 ```
 
-## Publicar en shinyapps.io
-1. Crear cuenta gratuita en [https://www.shinyapps.io](https://www.shinyapps.io)
-2. Configurar `rsconnect`:
-   ```r
-   install.packages("rsconnect")
-   rsconnect::setAccountInfo(name='usuario', token='token', secret='clave')
-   ```
-3. Subir la app:
-   ```r
-   rsconnect::deployApp()
-   ```
+O desde una terminal:
 
-## Demo en Línea
-🌐 [https://epigen.shinyapps.io/API-Pop/](https://epigen.shinyapps.io/API-Pop/)
+```bash
+Rscript --vanilla -e "shiny::runApp('.', host = '127.0.0.1', port = 3838)"
+```
+
+## Modos de fuente de datos
+
+API-POP v2.0 permite:
+
+| Modo | Descripción |
+|---|---|
+| Datos cargados localmente | El usuario carga archivos y los registros válidos se anexan al almacenamiento local de la app. |
+| Base de datos externa | Un administrador configura la conexión en `config.yaml`. |
+| Flujo mixto | La base externa está configurada, pero la carga de archivos sigue habilitada. |
+
+La base local interna no debería presentarse al usuario final como una base de datos. En textos de usuario, usar términos como datos locales de la app o datos cargados.
+
+## Configuración
+
+Archivos principales:
+
+| Archivo | Propósito |
+|---|---|
+| `config.yaml` | Perfil de ejecución, fuente de datos, conexión/ruta de datos y rutas de la app. |
+| `config.json` | Mapeos de país, niveles geográficos y nombres visibles. |
+| `WWW/config.css` | Tema y estilo visual. |
+| `.Renviron` | Variables locales, perfiles o secretos. No debe subirse al repositorio. |
+
+## Salidas estándar
+
+### Lista de casos filtrados
+
+Contiene los registros detallados que coinciden con los filtros seleccionados. Ver `Data_Dictionary_API-Pop_cases.md`.
+
+### Resumen semanal
+
+Salida agregada para herramientas RAP. Ver `Data_Dictionary_API-Pop_weekly_pop.md`.
+
+La columna de conteo en v2.0 es:
+
+```text
+n_cases
+```
+
+## Scripts de preparación de datos
+
+| Script | Propósito |
+|---|---|
+| `data_prep/merge_layers.R` | Preparar archivos `.gpkg` por país para los filtros geográficos. |
+| `data_prep/connect_database_example.R` | Ejemplo para probar una conexión a fuente de datos externa. |
+| `data_prep/prepare_api_pop_database.R` | Preparar o reiniciar los datos locales de la app para pruebas. |
+
+## Lista de control antes de publicar
+
+Antes de desplegar:
+
+- Confirmar que la app inicia correctamente.
+- Probar carga de archivo válido.
+- Probar carga de archivo inválido.
+- Confirmar que la revisión de archivos se abre en una ventana emergente.
+- Confirmar que los filtros cargan sin errores de `level3_norm`.
+- Confirmar la descarga de casos filtrados.
+- Confirmar que el resumen semanal contiene `n_cases`.
+- Confirmar nombres de descarga con fecha y hora.
+- Confirmar que no se suben credenciales.
+- Confirmar que no se suben datos de prueba o datos reales dentro de archivos locales.
 
 ## Contacto
-**Proyecto:** PPT-UK – Argentina WS5  
-**Institution - Delivery Partner:** CEMIC
+
+**Proyecto:** PPT-UK – Argentina Work Package WS5
+**Institución / Delivery Partner:** CEMIC
