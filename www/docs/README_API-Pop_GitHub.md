@@ -77,7 +77,6 @@ The internal local data store should be hidden from end users and described as u
 - `README.md` – administration and user guide.
 - `README_API-Pop.md` – project overview and setup.
 - `README_API-Pop_ES.md` – Spanish overview.
-- `README_API-Pop_Dinamica_Trabajo_Colaborativo.md` – collaboration workflow.
 - `Data_Dictionary_API-Pop.md` – standard case-record fields.
 - `Data_Dictionary_API-Pop_cases.md` – filtered case export.
 - `Data_Dictionary_API-Pop_weekly_pop.md` – weekly summary export.
