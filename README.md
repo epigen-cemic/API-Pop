@@ -243,21 +243,3 @@ The app theme is controlled mainly through:
 ```text
 WWW/config.css
 ```
-
-Version 2.0 aligns the API-POP theme more closely with the Digital Dashboard and the other RAP tools. Update CSS variables at the top of the file for branding changes before modifying structural CSS rules.
-
-## 10. Release checklist for v2.0
-
-Before publishing a v2.0 release:
-
-- Confirm `git diff --check` is clean.
-- Confirm the app starts locally.
-- Test one valid upload.
-- Test one invalid upload.
-- Confirm upload review opens in a modal.
-- Confirm filters load without `level3_norm` errors.
-- Confirm filtered case export downloads.
-- Confirm weekly summary uses `n_cases`.
-- Confirm timestamped filenames.
-- Confirm no test records are committed in `data/your_database.dba`.
-- Confirm secrets are not committed.
