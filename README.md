@@ -1,4 +1,4 @@
-# API-POP v2.0 – Administration and User Guide
+# API-POP v2.0.1 – Administration and User Guide
 
 API-POP is an R/Shiny application for reviewing suspected-case records, filtering them by geography and demographics, and producing population-compatible outputs for epidemiological analysis.
 
