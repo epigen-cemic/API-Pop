@@ -1,4 +1,4 @@
-cff-version: 2.0.0
+cff-version: 2.0.1
 message: "If you use this software, please cite it as below."
 type: software
 title: "API-Pop: An application programming interface for integrating case reports with population denominators and geographic data"
@@ -24,7 +24,7 @@ contact:
     orcid: "https://orcid.org/0000-0002-6102-8416"
     email: "fpoletta@cemic.edu.ar"
     affiliation: "Laboratorio de Epidemiología Genética, Centro de Educación Médica e Investigaciones Clínicas \"Norberto Quirno\" (UE CEMIC-CONICET)"
-version: 2.0.0
+version: 2.0.1
 date-released: 2026-06-12
 doi: 10.5281/zenodo.21893512
 license: MIT
