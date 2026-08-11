@@ -243,3 +243,19 @@ The app theme is controlled mainly through:
 ```text
 WWW/config.css
 ```
+
+## Project
+
+**Project:** Analysis for Action  – Argentina Work Package WS5
+**Institution / Delivery Partner:** CEMIC. 
+The API-Pop was developed at CEMIC, the Argentina Delivery Partner for Analysis for Action (formerly the Pandemic Preparedness Toolkit), a project led by the UK Office for National Statistics (ONS). This work was supported by the Wellcome (Grant number 226596/Z/22/Z).
+
+## Citation
+
+If you use API-Pop in research, publications, or other work, please cite the software using the following DOI:
+Giordano, M. E., Gili, J. A., López-Camelo, J. S.& Poletta, F. A. (2026). API-Pop: An application programming interface for integrating case reports with population denominators and geographic data (Version v2.0.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.21893512
+
+**API-Pop v2.0.1**  
+https://doi.org/10.5281/zenodo.21893512
+
+Citation metadata are also available in the `CITATION.cff` file.
