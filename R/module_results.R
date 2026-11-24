@@ -1,18 +1,20 @@
-﻿#' Results Server Module
+﻿#' Render and export analysis results
 #'
-#' Handles the rendering of the dynamic results table and provides download handlers
-#' for both the raw dataset and a weekly spatial summary aggregated by the finest
-#' configured geographic level.
+#' Display filtered case records and export both the record list and a weekly geographic case-count
+#' summary; the latter uses population geometry when available.
 #'
-#' @param id Character string. The Shiny module ID.
-#' @param data_reactive Reactive expression. Returns the filtered dataset from the database.
-#' @param cols_for_table Character vector. The baseline default columns to display in the table.
-#' @param display_names List. A mapping of internal column names to human-readable UI labels.
-#' @param filter_metadata Reactive expression. Returns the active filter selections (e.g., country, level1).
-#' @param ALL_CONFIGS List. The complete configuration object for all countries, injected to avoid global dependency.
-#' @param gpkg_path Character string. Path to the geometry .gpkg file used for spatial population joins.
+#' @details Population in the weekly export is derived from the configured spatial source when a
+#'   suitable join can be made; missing or mismatched spatial data may yield missing population
+#'   values.
 #'
-#' @return NULL
+#' @param id Character Shiny module identifier used for namespacing.
+#' @param data_reactive Reactive expression yielding filtered case records.
+#' @param cols_for_table Baseline columns displayed in the results table.
+#' @param display_names Mapping of internal field names to user-facing labels.
+#' @param filter_metadata Reactive expression returning selected filtering and geography metadata.
+#' @param ALL_CONFIGS Named country configurations used by the application.
+#' @param gpkg_path Path to the country GeoPackage containing configured geographic layers.
+#' @return The Shiny module server result (used for side effects).
 #' @export
 resultsServer <- function(id, data_reactive, cols_for_table, display_names, filter_metadata, ALL_CONFIGS, gpkg_path) {
   moduleServer(id, function(input, output, session) {
@@ -57,6 +59,13 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
       app_datatable(display_table_data(), page_length = 15)
     })
 
+    #' Create the empty weekly-export schema
+    #'
+    #' Provide the expected summary columns when a query has no rows or cannot be summarized.
+    #'
+    #' @param config Optional country configuration for the summary schema.
+    #' @return An empty data frame with export columns.
+    #' @keywords internal
     empty_summary_template <- function(config = NULL) {
       geo_cols <- if (!is.null(config)) {
         get_country_levels(config)
@@ -79,6 +88,15 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
       template
     }
 
+    #' Select geography settings for summary export
+    #'
+    #' Use the selected country from the filter metadata or the available record data to identify
+    #' the configuration for aggregation.
+    #'
+    #' @param meta Selected filter metadata, including country where available.
+    #' @param df Data frame containing input or output records.
+    #' @return The selected geographic configuration or NULL.
+    #' @keywords internal
     resolve_summary_config <- function(meta, df) {
       selected_country <- meta$country %||% ""
       if (nzchar(selected_country) && !is.null(ALL_CONFIGS[[selected_country]])) {
@@ -154,6 +172,7 @@ resultsServer <- function(id, data_reactive, cols_for_table, display_names, filt
         final_df <- summary_df
         final_df$population <- NA_real_
 
+        # Population denominators are joined from geography, not summed from case rows.
         # C. Join population when the configured GeoPackage/layer is available.
         specific_gpkg <- here::here("data", config$file_name)
         spatial_id_key <- finest_map$spatial_id

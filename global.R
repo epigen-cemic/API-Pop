@@ -14,8 +14,8 @@ library(sf)
 library(DT)
 library(RSQLite)
 library(DBI)
-library(pool)      # ADDED: For database connection pooling
-library(config)    # ADDED: For yaml configuration management
+library(pool)      # Reuse connections across module requests.
+library(config)    # Read configured connection settings.
 library(stringi)
 library(readxl)
 library(dplyr)

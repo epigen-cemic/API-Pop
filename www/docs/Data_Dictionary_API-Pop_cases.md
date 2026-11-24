@@ -1,32 +1,22 @@
-# Data Dictionary – API-POP v2.0 Filtered Case Export
+# API-POP | Filtered Case Export Dictionary
 
-This dictionary describes the filtered case-list export produced by API-POP v2.0.
+**Applies to:** API-POP v2.x. **Revision:** 2026-11-23.
 
-The case export is intended for review, audit, and downstream investigation. It contains the records matching the selected filters. Internal normalized columns are not intended for the user-facing export.
+The **Cases List** button runs the same filtered query used to feed the results UI, then downloads those query columns as CSV. This is **not** a full-table export. It is not the same as the condensed interactive results display.
 
-## Standard exported fields
+| Field | Type/meaning | Conditions |
+|---|---|---|
+| `suspected_diagnosis` | Text | As returned by the configured reports table. |
+| `symptom_description` | Text | May contain multiple symptoms. |
+| `symptom_onset_date` | Date/text representation | Subject to source data type and SQL engine. |
+| `country` | Text | Included through configured geography. |
+| `level1` | Text | Included when in selected/configured hierarchy. |
+| `level2` | Text | Included when in selected/configured hierarchy. |
+| `level3` | Text | Included when in selected/configured hierarchy. |
+| `consultation_date` | Date/text representation | Drives the weekly export. |
+| `sex` | Text | Original source category. |
+| `Age` | Integer derived from consultation/birth dates | May be missing for incomplete dates. |
 
-| Field name | Type | Format / allowed values | Description |
-|---|---:|---|---|
-| `id_code` | Text | UUID or source identifier | Unique source record identifier when available. |
-| `consultation_date` | Date | `YYYY-MM-DD` | Date of consultation or report contact. |
-| `symptom_onset_date` | Date | `YYYY-MM-DD` | Date when symptoms began. |
-| `suspected_diagnosis` | Text | Free text or configured category | Suspected diagnosis or event label. |
-| `symptom_description` | Text | Free text | Description of symptoms. |
-| `country` | Text | Configured country name/code | Country associated with the case location. |
-| `level1` | Text | Configured geography code/name | First configured administrative/geographic level. |
-| `level2` | Text | Configured geography code/name | Second configured administrative/geographic level. |
-| `locality` | Text | Free text or configured location value | Locality or place name when available. |
-| `level3` | Text | Configured geography code/name | Third configured administrative/geographic level, when available. |
-| `sex` | Text | Source value | Sex or sex category recorded for the case. |
-| `birth_date` | Date | `YYYY-MM-DD` | Date of birth when available. |
-| `email` | Text | Email address | Reporting professional or submitter email when available. |
-| `institution` | Text | Free text | Reporting institution when available. |
-| `confirmation_time` | Date-time | `YYYY-MM-DD HH:MM:SS` | Date-time when the record was submitted or confirmed by the source tool. |
+The actual exported geographic columns depend on the country configuration and current query. `id_code`, `birth_date`, `email`, `institution` and source timestamps are not part of the current SELECT, even if they exist in the database. Output filenames use a timestamped `query_results` prefix.
 
-## Notes
-
-- The exact column order may vary slightly depending on the source data and app configuration.
-- Internal columns such as `country_norm`, `level1_norm`, `level2_norm`, and `level3_norm` are used for filtering and should normally remain hidden from the exported case list.
-- In v2.0, downloads should use timestamped filenames to avoid overwriting multiple exports created on the same day.
-- Geographic labels shown in the app are controlled by `config.json`; exported data keeps the standard generic field names for compatibility with the other RAP tools.
+**Important:** records should be handled according to institutional confidentiality and access policies. See the [User Guide](USER_GUIDE.md) for downloading and interpreting results.

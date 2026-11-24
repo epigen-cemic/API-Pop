@@ -1,4 +1,9 @@
-#' @title Main Analysis Module - UI
+#' Build the main analysis interface
+#'
+#' Compose the upload, filtering, results, and export Shiny modules within the analysis page.
+#'
+#' @param id Character Shiny module identifier used for namespacing.
+#' @return A Shiny UI tag tree.
 #' @export
 analysisUI <- function(id) {
   ns <- NS(id)
@@ -20,7 +25,6 @@ analysisUI <- function(id) {
     # 2. Hero Title Section
     div(class = "hero-section",
         div(class = "hero-content",
-          #  div(class = "breadcrumb-text", "Analysis / Population"),
             h1(class = "app-title", "API Population")
         )
     ),
@@ -61,20 +65,15 @@ analysisUI <- function(id) {
   )
 }
 
-#' @title Main Analysis Module - Server Logic
+#' Coordinate the analysis workflow
 #'
-#' @description
-#' Handles the backend orchestration for the main analysis module. Rather than
-#' executing logic directly, it delegates tasks to specialized sub-modules
-#' (\code{uploadServer}, \code{filtersServer}, \code{resultsServer}) and
-#' handles the primary database query based on the active filters.
+#' Connect upload, filter, database query, and results modules. A filter change triggers a read
+#' from the configured reports table.
 #'
-#' @param id Character string. The namespace identifier.
-#' @param con DBI Connection object.
-#' @param gpkg_path Character string. Path to the geometry .gpkg file.
-#'
-#' @import shiny
-#' @import DBI
+#' @param id Character Shiny module identifier used for namespacing.
+#' @param con A DBI database connection or compatible pool.
+#' @param gpkg_path Path to the country GeoPackage containing configured geographic layers.
+#' @return The Shiny module server result (used for side effects).
 #' @export
 analysisServer <- function(id, con, gpkg_path) {
   moduleServer(id, function(input, output, session) {
@@ -133,7 +132,7 @@ analysisServer <- function(id, con, gpkg_path) {
 
       result <- DBI::dbGetQuery(con, sql)
 
-      # Just return the result directly! No double-encoding.
+      # Preserve the query result for downstream table rendering and exports.
       return(result)
     })
 

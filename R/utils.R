@@ -1,10 +1,10 @@
-#' Force Data into UTF-8
-#' 
-#' Safely converts character vectors and dataframe character columns to UTF-8
-#' to prevent segfaults and ensure special characters render correctly in the UI.
-#' 
-#' @param x A character vector or data.frame
-#' @return The same object with UTF-8 encoded text
+#' Convert character data to UTF-8
+#'
+#' Convert a character vector or character columns in a data frame using iconv; other inputs are
+#' returned unchanged.
+#'
+#' @param x Input value or object to process.
+#' @return The converted object, preserving its basic structure.
 #' @export
 to_utf8 <- function(x) {
   if (is.data.frame(x)) {
@@ -21,17 +21,16 @@ to_utf8 <- function(x) {
   return(x)
 }
 
-#' @title Safely Read CSV Files with Encoding Detection
+#' Read CSV using estimated encoding
 #'
-#' @description 
-#' Reads the raw bytes of a CSV file to mathematically determine its encoding 
-#' before passing it to R's standard parser. This prevents the silent destruction 
-#' of special characters (like "ó" becoming "ï¿½") that happens when R incorrectly 
-#' guesses a file's encoding. Defaults to UTF-8 or Latin-1 based on the byte signature.
+#' Estimate text encoding from a byte sample using stringi and read the CSV as character columns.
+#' Encoding detection is heuristic.
 #'
-#' @param filepath Character string. The file path to the CSV to be read.
+#' @details Encoding is estimated rather than guaranteed. Numeric-looking CSV fields are
+#'   intentionally read as character data at this stage.
 #'
-#' @return A data frame containing the parsed CSV data.
+#' @param filepath Path to an uploaded data file.
+#' @return A data frame with character columns.
 #' @keywords internal
 read_csv_safely <- function(filepath) {
   raw_bytes <- readBin(filepath, what = "raw", n = 10000)
@@ -57,20 +56,15 @@ read_csv_safely <- function(filepath) {
   return(df)
 }
 
-#' @title Master Wrapper for Reading Uploaded Data Files
+#' Read an uploaded data file
 #'
-#' @description 
-#' Acts as a router to process various file types (CSV, XLSX, XML, SQLite/DBA) 
-#' using the appropriate reading functions. After reading, it iterates through 
-#' all character columns and explicitly flags them as UTF-8 in R's memory to 
-#' guarantee cross-platform stability.
+#' Dispatch CSV, XLSX, XML, or DBA input to the corresponding parser, then normalize character
+#' encoding.
 #'
-#' @param filepath Character string. The file path to the uploaded file.
-#' @param ext Character string. The file extension (e.g., "csv", "xlsx", "xml", "dba").
-#' @param target_table Character string. The name of the table to extract if the 
-#'   uploaded file is a SQLite database (.dba).
-#'
-#' @return A data frame with all character columns safely forced into UTF-8 encoding.
+#' @param filepath Path to an uploaded data file.
+#' @param ext Filename extension without the leading dot.
+#' @param target_table Name of the destination table, including for uploaded SQLite databases.
+#' @return A data frame parsed from the uploaded file.
 #' @keywords internal
 read_uploaded_file <- function(filepath, ext, target_table) {
   df <- switch(ext,
@@ -92,25 +86,18 @@ read_uploaded_file <- function(filepath, ext, target_table) {
                stop("Unsupported file type")
   )
   
-  # ✅ ONLY encoding fix
+  # Normalize character columns after parsing each supported format.
   df[] <- lapply(df, fix_encoding)
   
   return(df)
 }
 
-#' @title String Normalization
+#' Normalize text for matching
 #'
-#' @description 
-#' Standardizes text strings for database filtering and searching. It safely 
-#' strips accents using the `stringi` ICU transliteration engine,
-#' converts text to lowercase, and trims whitespace. 
-#' Crucially, it does not delete unrecognized bytes, preventing strings from 
-#' being truncated if corrupted data is accidentally passed to it.
+#' Convert valid text to UTF-8, transliterate Latin accents, trim whitespace, and lowercase values.
 #'
-#' @param x A character vector (or a vector that can be coerced to character) 
-#'   to be normalized.
-#'
-#' @return A character vector of the same length as `x` containing the normalized strings.
+#' @param x Input value or object to process.
+#' @return A normalized character vector; returns NA for NULL or empty input.
 #' @keywords internal
 normalize <- function(x) {
   if (is.null(x) || length(x) == 0) return(NA)
@@ -123,28 +110,32 @@ normalize <- function(x) {
   return(tolower(trimws(v)))
 }
 
-#' Add Filters to SQL Query
-#' 
-#' Dynamically appends WHERE clauses to a base SQL statement based on 
-#' user-selected filters, handling normalization for geographic tiers.
+#' Append case-filter conditions to SQL
 #'
-#' @param sql Character. The base SQL query (e.g., "SELECT * FROM reports").
-#' @param con A DBIConnection object.
-#' @param eq_filters List. Named list of equality/logic filters.
-#' @param range_filters List. Named list of date/numerical range filters.
-#' @param age_range Numeric vector. A length-2 vector for min/max age.
-#' @return Character. The modified SQL query with WHERE clauses.
+#' Construct WHERE conditions for selected geographic, text, range, and age filters using DBI
+#' quoting helpers.
+#'
+#' @details The current builder combines clauses with AND but does not group the OR expression
+#'   produced by build_logic. Review SQL precedence before modifying or relying on mixed symptom
+#'   filters.
+#'
+#' @param sql Base SQL SELECT statement.
+#' @param con A DBI database connection or compatible pool.
+#' @param eq_filters Named list of equality or text-filter values.
+#' @param range_filters Named list of two-element range boundaries.
+#' @param age_range Optional minimum and maximum age filter values.
+#' @return An SQL query string containing the appended conditions.
 #' @export
 add_filters_to_sql <- function(sql, con, eq_filters = list(), range_filters = list(), age_range = NULL) {
   
   conditions <- character()
   
-  # 1. Handle Age Range (from slider)
+  # Treat age limits as another database range condition.
   if (!is.null(age_range)) {
     range_filters$Age <- age_range
   }
   
-  # 2. Process Equality and Logic Filters
+  # Geographic comparisons use normalized companion columns.
   for (colname in names(eq_filters)) {
     val <- eq_filters[[colname]]
     
@@ -165,13 +156,13 @@ add_filters_to_sql <- function(sql, con, eq_filters = list(), range_filters = li
     }
   }
   
-  # 3. Process Range Filters (Dates and Age)
+  # Date and age ranges are handled separately from equality filters.
   for (colname in names(range_filters)) {
     val <- range_filters[[colname]]
     conditions <- c(conditions, build_range(con, colname, val))
   }
   
-  # 4. Final SQL Assembly
+  # Combine all active filter conditions into a single WHERE clause.
   if (length(conditions) > 0) {
     sql <- paste(sql, "WHERE", paste(conditions, collapse = " AND "))
   }
@@ -180,13 +171,18 @@ add_filters_to_sql <- function(sql, con, eq_filters = list(), range_filters = li
 }
 
 
-#' Build Equality SQL Clause (NA-Safe Version)
-#' @param con DBIConnection.
-#' @param colname Column name.
-#' @param val Value to match.
-#' @return SQL string.
+#' Build a quoted equality condition
+#'
+#' Generate a field = value expression with DBI identifier and literal quoting when the selection
+#' is meaningful.
+#'
+#' @param con A DBI database connection or compatible pool.
+#' @param colname Database column name to filter.
+#' @param val Selected value or text condition.
+#' @return An SQL condition string or NULL for an empty selection.
+#' @keywords internal
 build_eq <- function(con, colname, val) {
-  # isTruthy safely handles NULL, NA, and ""
+  # An unset selection must not add a SQL equality condition.
   if (!shiny::isTruthy(val)) return(NULL)
   
   sprintf("%s = %s", 
@@ -194,22 +190,29 @@ build_eq <- function(con, colname, val) {
           DBI::dbQuoteString(con, as.character(val)))
 }
 
-#' Build Range SQL Clause
-#' @param con DBIConnection.
-#' @param colname Column name.
-#' @param rng Vector of length 2 (min, max).
-#' @return SQL string.
+#' Build a quoted range condition
+#'
+#' Generate a BETWEEN expression from the first and second bounds.
+#'
+#' @param con A DBI database connection or compatible pool.
+#' @param colname Database column name to filter.
+#' @param rng Two-element lower and upper range boundaries.
+#' @return An SQL condition string.
 #' @keywords internal
 build_range <- function(con, colname, rng) {
   sprintf("%s BETWEEN %s AND %s", DBI::dbQuoteIdentifier(con, colname),
           DBI::dbQuoteString(con, as.character(rng[1])), DBI::dbQuoteString(con, as.character(rng[2])))
 }
 
-#' Build Text Logic SQL Clause (AND/OR)
-#' @param con DBIConnection.
-#' @param colname Column name.
-#' @param val String containing logical operators (e.g., "fever and cough").
-#' @return SQL string.
+#' Build symptom-text AND/OR conditions
+#'
+#' Parse textual and/or terms and generate LIKE clauses for symptom descriptions. The returned OR
+#' expression is not wrapped as a single group.
+#'
+#' @param con A DBI database connection or compatible pool.
+#' @param colname Database column name to filter.
+#' @param val Selected value or text condition.
+#' @return An SQL condition string.
 #' @keywords internal
 build_logic <- function(con, colname, val) {
   or_groups <- strsplit(val, "\\s+or\\s")[[1]]
@@ -226,15 +229,23 @@ build_logic <- function(con, colname, val) {
 
 
 
-#' Fetch Geographic Options Based on ID Matching
-#' 
-#' @param gpkg_path Path to the .gpkg file.
-#' @param country The country key (e.g., "Argentina").
-#' @param level_key The level we want to FILL (e.g., "level1", "level2").
-#' @param parent_key The level the user JUST CLICKED (e.g., "level1").
-#' @param parent_val The ID CODE of the selected parent (e.g., "06" for a province).
+#' Read geographic choices from the GeoPackage
+#'
+#' Query configured spatial layers to obtain named geographic ID choices, optionally restricting
+#' them to a selected parent.
+#'
+#' @details The query relies on the configured spatial layer and parent identifiers. A failed read
+#'   is logged and exposed to callers as no choices.
+#'
+#' @param gpkg_path Path to the country GeoPackage containing configured geographic layers.
+#' @param country Configured country key.
+#' @param level_key Generic geographic level key such as level1, level2, or level3.
+#' @param parent_key Generic key of the parent geographic level, if selected.
+#' @param parent_val Identifier of the selected parent area, if any.
+#' @return A named character vector of IDs or an empty vector on failure.
+#' @keywords internal
 fetch_options <- function(gpkg_path, country, level_key, parent_key = NULL, parent_val = NULL) {
-  # 1. Validation
+  # An invalid selection must not trigger a spatial query.
   if (!exists("ALL_CONFIGS") || is.null(country) || country == "") return(character(0))
   
   config <- ALL_CONFIGS[[country]]
@@ -244,7 +255,7 @@ fetch_options <- function(gpkg_path, country, level_key, parent_key = NULL, pare
   name_col <- if (!is.null(target_map$name_col)) target_map$name_col else "nam"
   id_col   <- if (!is.null(target_map$spatial_id)) target_map$spatial_id else "rowid"
   
-  # 2. SQL Build (ID-BASED)
+  # Match child layers to the configured parent spatial identifiers.
   if (is.null(parent_key) || is.null(parent_val) || parent_val == "") {
     
     sql <- sprintf(
@@ -270,7 +281,7 @@ fetch_options <- function(gpkg_path, country, level_key, parent_key = NULL, pare
     )
   }
   
-  # 3. Execute (NO encoding fix anymore)
+  # Return identifier-valued choices for the dependent geographic selector.
   res <- tryCatch({
     
     data <- sf::st_read(gpkg_path, query = sql, quiet = TRUE)
@@ -292,66 +303,34 @@ fetch_options <- function(gpkg_path, country, level_key, parent_key = NULL, pare
 }
 
 
-#' Fix character encoding to UTF-8
+#' Repair invalid UTF-8 strings
 #'
-#' Attempts to ensure that a character vector is properly encoded in UTF-8.
-#' Valid UTF-8 strings are left unchanged, while invalid entries are assumed
-#' to be encoded in Latin-1 and are converted to UTF-8. Non-character inputs
-#' are returned unchanged.
-#' Note that this approach cannot recover text that has already been irreversibly
-#' corrupted
-#' @param x A vector. If character, encoding will be validated and corrected.
+#' Keep valid UTF-8 unchanged and attempt Latin-1 conversion for invalid character entries.
 #'
-#' @return A vector of the same length as x, with character elements safely
-#' converted to UTF-8 when needed.
+#' @param x Input value or object to process.
+#' @return The input vector with recoverable invalid encodings converted.
 #' @keywords internal
 fix_encoding <- function(x) {
   if (!is.character(x)) return(x)
   
-  # keep valid UTF-8 as is
+  # Preserve already valid UTF-8 entries.
   valid_utf8 <- !is.na(iconv(x, from = "UTF-8", to = "UTF-8"))
   
-  # fix only invalid ones (likely Latin-1)
+  # Attempt Latin-1 conversion only for values that are not valid UTF-8.
   x[!valid_utf8] <- iconv(x[!valid_utf8], from = "latin1", to = "UTF-8", sub = "")
   
   return(x)
 }
 
 
-#' Apply Country-Specific Code Length Rules
+#' Pad configured geographic codes
 #'
-#' @description
-#' Applies padding rules to geographic code columns based on country-specific
-#' configuration. For each country defined in the configuration list, the function
-#' checks whether any geographic level (e.g., level1, level2, level3) includes a
-#' `code_length` rule. If present, values in the corresponding column are padded
-#' with leading zeros to match the required length.
+#' Left-pad codes to their country-specific configured lengths for rows belonging to each
+#' configured country.
 #'
-#' Only values shorter than the specified length are modified. Values that already
-#' meet or exceed the required length remain unchanged. The operation is applied
-#' selectively to rows matching each country.
-#'
-#' @param df A data.frame containing at least a `country` column and any geographic
-#'   columns referenced in the configuration (e.g., "level1", "level2", "level3").
-#'
-#' @param config_list A named list of country configurations (typically parsed from
-#'   `config.json`). Each country may contain a `mapping` list where individual
-#'   levels define a `db_column` and optional `code_length`.
-#'
-#' @return A data.frame with updated columns where padding rules have been applied.
-#'
-#' @details
-#' The function:
-#' \itemize{
-#'   \item Iterates over each country defined in the configuration.
-#'   \item Identifies rows in `df` matching that country.
-#'   \item Applies padding only to columns with a defined `code_length`.
-#'   \item Leaves all other values unchanged.
-#' }
-#'
-#' The function assumes that `df$country` values match the names of
-#' `config_list`.
-#'
+#' @param df Data frame containing input or output records.
+#' @param config_list Named list of country geographic configurations.
+#' @return The input data frame with applicable geographic values padded.
 #' @keywords internal
 apply_code_length_rules <- function(df, config_list) {
   
@@ -364,7 +343,7 @@ apply_code_length_rules <- function(df, config_list) {
     
     if (is.null(mapping)) next
     
-    # rows for this country
+    # Apply each country-specific rule only to matching records.
     idx <- which(df$country == country_name)
     if (length(idx) == 0) next
     
@@ -372,7 +351,7 @@ apply_code_length_rules <- function(df, config_list) {
       
       level_cfg <- mapping[[level_name]]
       
-      # skip if no rule
+      # Leave levels without configured widths unchanged.
       if (is.null(level_cfg$code_length)) next
       
       col <- level_cfg$db_column
@@ -380,7 +359,7 @@ apply_code_length_rules <- function(df, config_list) {
       
       if (!col %in% names(df)) next
       
-      # apply ONLY to matching country rows
+      # Pad only rows associated with this country.
       df[[col]][idx] <- ifelse(
         nchar(df[[col]][idx]) < width,
         stringr::str_pad(df[[col]][idx], width, side = "left", pad = "0"),

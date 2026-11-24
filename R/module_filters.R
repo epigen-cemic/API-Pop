@@ -1,12 +1,10 @@
-﻿#' Filters Module UI
+﻿#' Build the case-filter interface
 #'
-#' Generates the user interface for the dynamic filters module. This includes
-#' a container for the dynamically generated filter inputs, action buttons to run
-#' or reset queries, and a dropdown for selecting the population source layer.
+#' Display dynamic controls for available database columns, cascading geographic selectors, and
+#' actions for applying or resetting filters.
 #'
-#' @param id Character string. The namespace ID for the Shiny module.
-#'
-#' @return A Shiny UI `tagList` object containing the filter controls.
+#' @param id Character Shiny module identifier used for namespacing.
+#' @return A Shiny UI tag tree.
 #' @export
 filtersUI <- function(id) {
   ns <- NS(id)
@@ -23,8 +21,17 @@ filtersUI <- function(id) {
   )
 }
 
-#' Filters Module Server
-#' Standardized for Generic Level Keys (level1, level2, level3)
+#' Manage reactive case filters
+#'
+#' Create filter inputs from the available columns, update dependent geographic selectors, and
+#' expose the selected filter values when the user applies them.
+#'
+#' @param id Character Shiny module identifier used for namespacing.
+#' @param columns Named set of available database fields and filter control types.
+#' @param display_names Mapping of internal field names to user-facing labels.
+#' @param population_layers Legacy population-layer argument; accepted but not used by the current
+#'   filter server.
+#' @return A reactive expression yielding the selected filter values.
 #' @export
 filtersServer <- function(id, columns, display_names, population_layers) {
   moduleServer(id, function(input, output, session) {
@@ -32,7 +39,7 @@ filtersServer <- function(id, columns, display_names, population_layers) {
 
     # --- 1. Render Dynamic Filters ---
     output$filter_ui <- renderUI({
-      # 1. Validation: Don't render if columns haven't loaded
+      # Wait until the destination columns are available before building controls.
       if (is.null(columns) || length(columns) == 0) return(tags$p("Initializing filters..."))
 
       tryCatch({
@@ -42,12 +49,12 @@ filtersServer <- function(id, columns, display_names, population_layers) {
             col_str <- as.character(col)
             col_type <- as.character(columns[[col_str]])
 
-            # Ensure display name is never NULL or empty
+            # Use the internal column name when no display label is configured.
             display <- if(col_str %in% names(display_names)) as.character(display_names[[col_str]]) else col_str
             if(length(display) == 0 || is.na(display) || display == "") display <- col_str
 
             # --- B. The Filter Container ---
-            # We use a simple div here. Our CSS handles the white box and stacking.
+            # The filter wrapper is styled by the shared application stylesheet.
             div(class = "filter-box",
                 # Top Level: The Toggle Checkbox
                 div(
@@ -61,7 +68,7 @@ filtersServer <- function(id, columns, display_names, population_layers) {
                   tags$hr(),
 
                   # --- C. Logic by Type ---
-                  # Each input is placed directly in the tagList to follow the CSS block rules
+                  # Keep each control within the expected filter-container structure.
                   if(col_type == "text") {
                     textInput(ns(paste0("val_", col_str)), NULL, placeholder = paste("Enter", display))
                   }
@@ -118,13 +125,13 @@ filtersServer <- function(id, columns, display_names, population_layers) {
 
     # --- 2. Standardized Location Cascading Logic ---
 
-    # --- Cascading Geography Logic (module_filters.R) ---
+    # Keep geographic selection state consistent across dependent levels.
 
-    # 1. Country Selection -> Load Provinces (Level 1)
+    # A country change resets and repopulates its first geographic level.
     observeEvent(input$country, {
       req(input$country)
 
-      # Reset lower levels immediately to prevent "ghost" data from previous selections
+      # Clear dependent selections before loading a new country hierarchy.
       updateSelectInput(session, "level1", choices = "")
       updateSelectInput(session, "level2", choices = "")
       updateSelectInput(session, "level3", choices = "")
@@ -145,7 +152,7 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       updateSelectInput(session, "level2", label = if (!is.null(level2_key)) get_level_label(country_cfg, level2_key) else "Level 2")
       updateSelectInput(session, "level3", label = if (!is.null(level3_key)) get_level_label(country_cfg, level3_key) else "Level 3")
 
-      # Fetch Level 1 options
+      # Load configured first-level geographic IDs and labels.
       opts <- fetch_options(
         gpkg_path = specific_gpkg,
         country = input$country,
@@ -160,11 +167,11 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       updateSelectInput(session, "level1", choices = c("", sort(opts)))
     })
 
-    # 2. Level 1 Selection -> Load Departments (Level 2)
+    # Changes to level 1 invalidate level 2 and level 3 selections.
     observeEvent(input$level1, {
       req(input$level1, input$country)
 
-      # Reset lower levels
+      # Clear child selections before replacing the available options.
       updateSelectInput(session, "level2", choices = "")
       updateSelectInput(session, "level3", choices = "")
 
@@ -176,7 +183,7 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       level1_key <- session$userData$level1_key %||% "level1"
       level2_key <- session$userData$level2_key %||% "level2"
 
-      # Fetch Level 2 using Level 1 as the parent
+      # Restrict second-level options to the selected first-level area.
       opts <- fetch_options(
         gpkg_path = specific_gpkg,
         country = input$country,
@@ -189,11 +196,11 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       updateSelectInput(session, "level2", choices = c("", sort(opts)))
     })
 
-    # 3. Level 2 Selection -> Load Fractions (Level 3)
+    # Changes to level 2 invalidate the finest geographic selection.
     observeEvent(input$level2, {
       req(input$level2, input$level1, input$country)
 
-      # Reset the lowest level
+      # Clear the finest-level selection before loading new options.
       updateSelectInput(session, "level3", choices = "")
 
       if (input$level2 == "") return()
@@ -204,7 +211,7 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       level2_key <- session$userData$level2_key %||% "level2"
       level3_key <- session$userData$level3_key %||% "level3"
 
-      # Fetch Level 3 using Level 2 as the parent
+      # Restrict finest-level options to the selected second-level area.
       opts <- fetch_options(
         gpkg_path = specific_gpkg,
         country = input$country,
@@ -217,7 +224,7 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       updateSelectInput(session, "level3", choices = c("", sort(opts)))
     })
 
-    # --- 3. Text Logic Helpers ---
+    # Render text-query options only for columns configured with logic filters.
     observe({
       lapply(names(columns)[columns == "text_logic"], function(col) {
         observeEvent(input[[paste0("btn_and_", col)]], {
@@ -240,7 +247,7 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       })
     })
 
-    # --- 4. Reset Button Logic ---
+    # Reset the filter state when the user requests a fresh query.
     observeEvent(input$reset, {
       for (col in names(columns)) {
         updateCheckboxInput(session, paste0("chk_", col), value = FALSE)
@@ -251,18 +258,26 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       updateSelectInput(session, "level3", choices = "")
     })
 
-    # --- 5. Return Filter Values ---
+    # Publish selected filters only when the query is applied.
     active_filters <- eventReactive(input$run, {
       eq_filters <- list(); range_filters <- list()
 
-      # Renamed local wrapper to avoid colliding with utils.R
+      # Normalize the values returned by filter inputs.
+      #' Normalize an input selection
+      #'
+      #' Convert an empty or unset input to NULL and delegate nonempty values to the global text
+      #' normalizer.
+      #'
+      #' @param x Input value or object to process.
+      #' @return A normalized input value or NULL.
+      #' @keywords internal
       clean_input <- function(x) {
         if (is.null(x) || length(x) == 0) return(NULL)
 
         val <- x[1]
         if (length(val) == 0 || is.na(val) || !nzchar(as.character(val))) return(NULL)
 
-        # Calls the global normalizer from utils.R
+        # Use the common normalization rules applied to query values.
         return(normalize(val))
       }
 
@@ -289,6 +304,15 @@ filtersServer <- function(id, columns, display_names, population_layers) {
       # 2. Geography Logic
       if (isTRUE(input$chk_location)) {
 
+        #' Resolve a geographic selection label
+        #'
+        #' Look up a selected geographic identifier in a named vector of selectable choices.
+        #'
+        #' @param id_val Selected geographic identifier.
+        #' @param choices Named character vector of geographic choices where names are labels and
+        #'   values are identifiers.
+        #' @return The display label or a fallback value when the identifier is not matched.
+        #' @keywords internal
         get_name <- function(id_val, choices) {
           if (!isTruthy(id_val)) return(NULL)
           lbl <- names(choices)[which(choices == id_val)]

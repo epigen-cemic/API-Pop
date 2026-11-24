@@ -1,39 +1,25 @@
-# Data Dictionary – API-POP v2.0 Weekly Case and Population Summary
+# API-POP | Weekly Case Summary Dictionary
 
-This dictionary describes the weekly summary export produced by API-POP v2.0.
+**Applies to:** API-POP v2.x. **Revision:** 2026-11-23.
 
-The weekly summary is the main compatibility output for downstream RAP tools such as CUSUM RAP, Geospatial RAP, and the Digital Dashboard.
+**Weekly Summary** downloads CSV produced by `resultsServer()`. Counts are grouped by ISO week and the geographic fields present in the filtered query. The default Argentina hierarchy is country, level1, level2 and level3; other configured hierarchies can produce a different geographic column set.
 
-## Standard exported fields
+| Field | Type | Meaning |
+|---|---|---|
+| `country`, `level1`, `level2`, `level3` | Text | Available configured geographic grouping fields (not all guaranteed for every country). |
+| `year` | Integer | ISO week-based year from `consultation_date` (`lubridate::isoyear`). |
+| `week` | Integer | ISO week number from `consultation_date` (`lubridate::isoweek`), 1–53. |
+| `n_cases` | Integer | Number of filtered case rows in that geographic unit and week. |
+| `population` | Numeric/nullable | Population from a matching field in the finest configured geographic layer, when join succeeds. |
 
-| Field name | Type | Format / allowed values | Description |
-|---|---:|---|---|
-| `year` | Integer | `YYYY` | Epidemiological or calendar year used by the aggregation. |
-| `week` | Integer | `1`-`53` | Week number used by the aggregation. |
-| `country` | Text | Configured country name/code | Country associated with the aggregated location. |
-| `level1` | Text | Configured geography code/name | First configured administrative/geographic level. |
-| `level2` | Text | Configured geography code/name | Second configured administrative/geographic level. |
-| `level3` | Text | Configured geography code/name | Third configured administrative/geographic level, when available. |
-| `n_cases` | Integer | `0` or greater | Number of filtered cases for the location and week. |
-| `population` | Numeric | `0` or greater | Population denominator for the location and selected demographic filters, when available. |
+**Population join:** the program reads the configured finest-level GeoPackage layer, looks for `Population`, `population`, `pop` or `total_population`, and joins using the configured `spatial_id` and its `db_column` counterpart. If no usable layer, field or join exists, `population` may be blank/`NA`. Blank is **not** zero. The source does not calculate demographic-specific denominators or manage population reference years.
 
-## Compatibility notes
+**Granularity:** one row for each distinct ISO week + combination of available geographic columns. This source does not automatically deduplicate the underlying case data before counting. `n_cases` is a count, not prevalence. The join and correct geography must be validated before passing the summary to RAP CUSUM, Geospatial or Dashboard.
 
-- The case-count column is `n_cases` in v2.0. Do not rename it to `Recount` or `cases` for new exports.
-- Downstream RAP tools should treat `n_cases` as the event count column.
-- If a configured geography level is not used by a country or source dataset, the corresponding level column may be blank or omitted depending on the app configuration.
-- Population values should be numeric and should represent the denominator corresponding to the selected filters.
-- Downloads should use timestamped filenames to avoid overwriting multiple exports created on the same day.
+An empty or incompatible query may produce a header-only CSV. The application uses a timestamped `weekly_summary` filename.
 
-## Minimal compatible structure
+## Preparing the population reference
 
-A minimal weekly export for downstream analysis should contain:
+For the bundled Argentina configuration, population should be stored in the finest mapped GeoPackage layer, **Fraction**, with a unique `cod_indec` identifier. The current exporter recognises `Population`, `population`, `pop`, or `total_population`. If a population dataset is separate, it must be validated and joined to the layer before the exporter can use it.
 
-```text
-year,week,country,level1,level2,level3,n_cases,population
-2026,6,Argentina,Buenos Aires,La Plata,,12,150000
-2026,7,Argentina,Buenos Aires,La Plata,,15,150000
-2026,8,Argentina,Buenos Aires,La Plata,,10,150000
-```
-
-When level 3 is active and available, `level3` should be filled with the configured third-level code or name.
+Record the population source, reference year, geographic coverage and eligible population definition outside the current weekly CSV. The exporter does not resolve multiple population vintages, and the denominator is not automatically adjusted for the sex or age filters selected. Missing values are not zero.

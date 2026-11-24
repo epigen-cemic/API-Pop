@@ -1,13 +1,10 @@
-#' Upload Module UI
+#' Build the upload and review interface
 #'
-#' Generates the user interface for the data upload module.
+#' Provide a multi-file upload control and staging interface for reviewing which input files may be
+#' appended to the selected data source.
 #'
-#' The module supports multiple files, stages them for review, marks unreadable
-#' or empty files as disallowed, and lets users append only the active allowed
-#' files to the configured active data source.
-#'
-#' @param id Character string. The namespace ID for the Shiny module.
-#' @return A Shiny UI `tagList`.
+#' @param id Character Shiny module identifier used for namespacing.
+#' @return A Shiny UI tag tree.
 #' @export
 uploadUI <- function(id) {
   ns <- NS(id)
@@ -19,18 +16,17 @@ uploadUI <- function(id) {
   )
 }
 
-#' Upload Module Server
+#' Process staged report imports
 #'
-#' Handles the server-side logic for uploading files (CSV, XLSX, XML,
-#' SQLite/DBA), staging them for review, mapping columns to the app data fields,
-#' appending the active data, and triggering geographic normalization.
+#' Read supported uploads, validate tabular content, stage files for review, map columns, and
+#' append accepted rows to the configured reports table.
 #'
-#' @param id Character string. The Shiny module ID.
-#' @param con A DBIConnection object or pool.
-#' @param target_table Character string. The database table to append data to.
-#' @param target_cols Character vector. The expected columns in the target table.
-#' @param data_source_settings Optional list describing the active data source.
-#' @return NULL
+#' @param id Character Shiny module identifier used for namespacing.
+#' @param con A DBI database connection or compatible pool.
+#' @param target_table Name of the destination table, including for uploaded SQLite databases.
+#' @param target_cols Names of fields expected by the destination table.
+#' @param data_source_settings Optional data source mode and upload settings.
+#' @return The Shiny module server result (used for side effects).
 #' @export
 uploadServer <- function(id, con, target_table = "reports", target_cols, data_source_settings = NULL) {
   moduleServer(id, function(input, output, session) {
@@ -147,6 +143,15 @@ uploadServer <- function(id, con, target_table = "reports", target_cols, data_so
       ))
     })
 
+    #' Read and classify one uploaded file
+    #'
+    #' Read the uploaded file identified by its Shiny upload metadata and return its staging
+    #' status, rows, and metadata.
+    #'
+    #' @param file_row Single-row Shiny fileInput upload metadata.
+    #' @param idx Index of the uploaded file within the current selection.
+    #' @return A staged-upload descriptor including data and validation status.
+    #' @keywords internal
     read_one_upload <- function(file_row, idx) {
       file_name <- as.character(file_row$name)
       file_path <- as.character(file_row$datapath)
