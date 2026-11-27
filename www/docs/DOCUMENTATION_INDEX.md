@@ -12,6 +12,3 @@
 | Data custodians / integrators | [Filtered Cases CSV Dictionary](Data_Dictionary_API-Pop_cases.md) | Case CSV exported from current query. |
 | Data custodians / integrators | [Weekly Summary Dictionary](Data_Dictionary_API-Pop_weekly_pop.md) | Weekly counts and optional population. |
 
-**Publication note:** these guides describe current code, not a future universal API. Features found in older documents but not in the source are not represented as available. Metadata naming currently differs (`CITATION.cff` software version `2.0.1` versus some older `v2.0` labels); decide a release version before publication. Roxygen2 blocks in `R/` are the function-level companion reference.
-
-The accompanying Word guides follow the Analysis for Action branding and editorial style guide. Documentation is written in British English. An institution distributing these guides externally should check local branding and funder acknowledgements before publication.
