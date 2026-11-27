@@ -1,7 +1,7 @@
 # API-POP: Documentation library
 
 **Documentation revision:** 23 November 2026  
-**Edition:** API-POP v2.x; documentation describes the current supported features and source modules.
+**Edition:** API-POP v2.0.1; documentation describes the current supported features and source modules.
 
 | Audience | Start here | Scope |
 |---|---|---|
