@@ -2,7 +2,6 @@
 
 API-POP is an R/Shiny application for filtering case reports, reviewing uploaded files, appending mapped records to a configured data source, and exporting filtered cases and ISO-week case counts. Geographic levels and labels are configured per country. Weekly exports may include a population denominator from a configured geographic layer when the join succeeds.
 
-**Software release line:** v2.x (`CITATION.cff` identifies software version `2.0.1`). **Documentation revision:** 2026-11-23. This README documents currently implemented functionality.
 
 ## Quick start
 
